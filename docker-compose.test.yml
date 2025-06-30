@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: test
+    container_name: dnsmate-backend-test
+    environment:
+      - DATABASE_URL=postgresql://dnsmate_test:dnsmate_test_password@postgres-test:5432/dnsmate_test
+      - SECRET_KEY=test-secret-key
+      - JWT_SECRET=test-jwt-secret-key
+      - RESET_PASSWORD_TOKEN_SECRET=test-reset-password-secret
+      - VERIFICATION_TOKEN_SECRET=test-verification-secret
+      - POWERDNS_API_URL=http://powerdns-test:8081
+      - POWERDNS_API_KEY=test-key
+      - ENVIRONMENT=test
+      - CORS_ORIGINS=http://localhost:3000
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - dnsmate-test
+    command: ["pytest", "-v", "--tb=short", "--cov=app", "--cov-report=term-missing"]
+
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: dnsmate-postgres-test
+    environment:
+      - POSTGRES_DB=dnsmate_test
+      - POSTGRES_USER=dnsmate_test
+      - POSTGRES_PASSWORD=dnsmate_test_password
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dnsmate-test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dnsmate_test -d dnsmate_test"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  powerdns-test:
+    image: powerdns/pdns-auth-48:latest
+    container_name: dnsmate-powerdns-test
+    environment:
+      - PDNS_AUTH_API_KEY=test-key
+      - PDNS_AUTH_WEBSERVER=yes
+      - PDNS_AUTH_WEBSERVER_ADDRESS=0.0.0.0
+      - PDNS_AUTH_WEBSERVER_PORT=8081
+      - PDNS_AUTH_WEBSERVER_ALLOW_FROM=0.0.0.0/0
+      - PDNS_AUTH_API=yes
+      - PDNS_AUTH_LAUNCH=gsqlite3
+      - PDNS_AUTH_GSQLITE3_DATABASE=/var/lib/powerdns/pdns.sqlite3
+      - PDNS_AUTH_GSQLITE3_DNSSEC=yes
+    volumes:
+      - ./powerdns-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dnsmate-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/servers/localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  dnsmate-test:
+    driver: bridge

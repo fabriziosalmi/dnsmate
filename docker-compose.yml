@@ -1,0 +1,224 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: ${TARGET:-production}
+    container_name: dnsmate-backend
+    environment:
+      - DATABASE_URL=postgresql://dnsmate:dnsmate_password@postgres:5432/dnsmate
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+      - RESET_PASSWORD_TOKEN_SECRET=${RESET_PASSWORD_TOKEN_SECRET:-your-reset-password-secret}
+      - VERIFICATION_TOKEN_SECRET=${VERIFICATION_TOKEN_SECRET:-your-verification-secret}
+      - POWERDNS_API_URL=${POWERDNS_API_URL:-http://powerdns:8081}
+      - POWERDNS_API_KEY=${POWERDNS_API_KEY:-dnsmate-test-key}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8021}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    networks:
+      - dnsmate
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: ${TARGET:-production}
+    container_name: dnsmate-frontend
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+      - GENERATE_SOURCEMAP=${GENERATE_SOURCEMAP:-false}
+    ports:
+      - "8021:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - dnsmate
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: dnsmate-postgres
+    environment:
+      - POSTGRES_DB=dnsmate
+      - POSTGRES_USER=dnsmate
+      - POSTGRES_PASSWORD=dnsmate_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - dnsmate
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dnsmate -d dnsmate"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # PowerDNS instance for testing
+  powerdns:
+    image: powerdns/pdns-auth-48:latest
+    container_name: dnsmate-powerdns
+    environment:
+      - PDNS_AUTH_API_KEY=${POWERDNS_API_KEY:-dnsmate-test-key}
+      - PDNS_AUTH_WEBSERVER=yes
+      - PDNS_AUTH_WEBSERVER_ADDRESS=0.0.0.0
+      - PDNS_AUTH_WEBSERVER_PORT=8081
+      - PDNS_AUTH_WEBSERVER_ALLOW_FROM=0.0.0.0/0
+      - PDNS_AUTH_API=yes
+      - PDNS_AUTH_LAUNCH=gsqlite3
+      - PDNS_AUTH_GSQLITE3_DATABASE=/var/lib/powerdns/pdns.sqlite3
+      - PDNS_AUTH_GSQLITE3_DNSSEC=yes
+    ports:
+      - "8081:8081"
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - powerdns_data:/var/lib/powerdns
+      - ./powerdns-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dnsmate
+    restart: unless-stopped
+    profiles:
+      - with-powerdns
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/servers/localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Development frontend with hot reload
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: dnsmate-frontend-dev
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      - GENERATE_SOURCEMAP=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - dnsmate
+    profiles:
+      - development
+    stdin_open: true
+    tty: true
+
+  # Testing services
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: test
+    container_name: dnsmate-backend-test
+    environment:
+      - DATABASE_URL=postgresql://dnsmate_test:dnsmate_test_password@postgres-test:5432/dnsmate_test
+      - SECRET_KEY=test-secret-key
+      - JWT_SECRET=test-jwt-secret-key
+      - RESET_PASSWORD_TOKEN_SECRET=test-reset-password-secret
+      - VERIFICATION_TOKEN_SECRET=test-verification-secret
+      - POWERDNS_API_URL=http://powerdns-test:8081
+      - POWERDNS_API_KEY=test-key
+      - ENVIRONMENT=test
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - dnsmate-test
+    profiles:
+      - test
+    command: ["pytest", "-v", "--tb=short"]
+
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: dnsmate-postgres-test
+    environment:
+      - POSTGRES_DB=dnsmate_test
+      - POSTGRES_USER=dnsmate_test
+      - POSTGRES_PASSWORD=dnsmate_test_password
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dnsmate-test
+    profiles:
+      - test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dnsmate_test -d dnsmate_test"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  powerdns-test:
+    image: powerdns/pdns-auth-48:latest
+    container_name: dnsmate-powerdns-test
+    environment:
+      - PDNS_AUTH_API_KEY=test-key
+      - PDNS_AUTH_WEBSERVER=yes
+      - PDNS_AUTH_WEBSERVER_ADDRESS=0.0.0.0
+      - PDNS_AUTH_WEBSERVER_PORT=8081
+      - PDNS_AUTH_WEBSERVER_ALLOW_FROM=0.0.0.0/0
+      - PDNS_AUTH_API=yes
+      - PDNS_AUTH_LAUNCH=gsqlite3
+      - PDNS_AUTH_GSQLITE3_DATABASE=/var/lib/powerdns/pdns.sqlite3
+      - PDNS_AUTH_GSQLITE3_DNSSEC=yes
+    volumes:
+      - ./powerdns-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dnsmate-test
+    profiles:
+      - test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/servers/localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+  powerdns_data:
+
+networks:
+  dnsmate:
+    driver: bridge
+  dnsmate-test:
+    driver: bridge
