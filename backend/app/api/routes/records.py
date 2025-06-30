@@ -93,11 +93,16 @@ async def create_record(
     client = PowerDNSClient()
     
     try:
+        # Validate and clean the record name
+        record_name = record.name.strip()
+        if not record_name:
+            record_name = "@"  # Root of the zone
+        
         powerdns_record = PowerDNSRecord(
-            name=record.name,
+            name=record_name,
             type=record.type,
             content=record.content,
-            ttl=record.ttl,
+            ttl=record.ttl or 300,  # Default TTL if not specified
             priority=record.priority,
             disabled=record.disabled
         )
@@ -109,7 +114,7 @@ async def create_record(
             name=record.name,
             type=record.type,
             content=record.content,
-            ttl=record.ttl,
+            ttl=record.ttl or 300,
             priority=record.priority,
             disabled=record.disabled
         )

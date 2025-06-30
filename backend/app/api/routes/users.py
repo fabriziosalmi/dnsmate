@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
-from app.core.auth import current_active_user, current_superuser
+from app.core.auth import current_active_user, current_superuser, current_admin_user
 from app.core.database import get_async_session
 from app.models.user import User, ZonePermission, UserRole
 from app.schemas.user import UserRead, UserUpdate, ZonePermissionCreate, ZonePermissionRead
@@ -44,7 +44,7 @@ async def update_users_me(
 @router.get("/", response_model=List[UserRead])
 async def read_users(
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser)
+    current_user: User = Depends(current_admin_user)
 ):
     """Get all users (admin only)"""
     result = await session.execute(select(User))
@@ -56,7 +56,7 @@ async def update_user(
     user_id: int,
     user_update: UserUpdate,
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser)
+    current_user: User = Depends(current_admin_user)
 ):
     """Update user (admin only)"""
     result = await session.execute(select(User).where(User.id == user_id))
@@ -79,7 +79,7 @@ async def update_user(
 async def delete_user(
     user_id: int,
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser)
+    current_user: User = Depends(current_admin_user)
 ):
     """Delete user (admin only)"""
     result = await session.execute(select(User).where(User.id == user_id))
@@ -115,7 +115,7 @@ async def create_user_permission(
     user_id: int,
     permission: ZonePermissionCreate,
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser)
+    current_user: User = Depends(current_admin_user)
 ):
     """Create zone permission for user (admin only)"""
     permission.user_id = user_id
@@ -131,7 +131,7 @@ async def delete_user_permission(
     user_id: int,
     permission_id: int,
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser)
+    current_user: User = Depends(current_admin_user)
 ):
     """Delete zone permission (admin only)"""
     result = await session.execute(

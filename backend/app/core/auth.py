@@ -73,3 +73,16 @@ fastapi_users = FastAPIUsers[User, int](get_user_manager, [auth_backend])
 # Current user dependencies
 current_active_user = fastapi_users.current_user(active=True)
 current_superuser = fastapi_users.current_user(active=True, superuser=True)
+
+
+# Custom admin dependency that checks for admin role
+async def current_admin_user(current_user: User = Depends(current_active_user)) -> User:
+    """Get current user if they have admin role"""
+    from app.models.user import UserRole
+    if current_user.role != UserRole.ADMIN:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user

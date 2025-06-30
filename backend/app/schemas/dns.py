@@ -62,6 +62,70 @@ class RecordCreate(BaseModel):
         if v is not None and (v < 1 or v > 86400):
             raise ValueError('TTL must be between 1 and 86400 seconds')
         return v
+    
+    @validator('content')
+    def validate_content(cls, v, values):
+        """Validate content based on record type"""
+        if 'type' not in values:
+            return v
+            
+        record_type = values['type'].upper()
+        content = v.strip()
+        
+        if record_type == 'A':
+            # Basic IPv4 validation
+            parts = content.split('.')
+            if len(parts) != 4:
+                raise ValueError('A record must be a valid IPv4 address')
+            try:
+                for part in parts:
+                    num = int(part)
+                    if not 0 <= num <= 255:
+                        raise ValueError('A record must be a valid IPv4 address')
+            except ValueError:
+                raise ValueError('A record must be a valid IPv4 address')
+        
+        elif record_type == 'AAAA':
+            # Basic IPv6 validation (simplified)
+            if ':' not in content:
+                raise ValueError('AAAA record must be a valid IPv6 address')
+        
+        elif record_type == 'MX':
+            # MX records content should be just the hostname (priority handled separately)
+            if not content:
+                raise ValueError('MX record content cannot be empty')
+            # If content contains priority, extract just the hostname
+            parts = content.split()
+            if len(parts) > 1 and parts[0].isdigit():
+                # Content includes priority, extract hostname
+                return ' '.join(parts[1:])
+        
+        elif record_type == 'CNAME':
+            if not content:
+                raise ValueError('CNAME record content cannot be empty')
+        
+        elif record_type == 'SRV':
+            # SRV content can be priority weight port target or just weight port target
+            if not content:
+                raise ValueError('SRV record content cannot be empty')
+                
+        return content
+    
+    @validator('priority')
+    def validate_priority(cls, v, values):
+        """Validate priority for record types that require it"""
+        if 'type' not in values:
+            return v
+            
+        record_type = values['type'].upper()
+        
+        if record_type in ['MX', 'SRV'] and v is None:
+            raise ValueError(f'{record_type} records require a priority value')
+        
+        if v is not None and (v < 0 or v > 65535):
+            raise ValueError('Priority must be between 0 and 65535')
+            
+        return v
 
 
 class RecordUpdate(BaseModel):

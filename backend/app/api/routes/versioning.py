@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 import io
+import logging
 from datetime import datetime
 
 from app.core.auth import current_active_user
@@ -16,6 +17,7 @@ from app.schemas.tokens import ZoneVersionCreate
 from app.services.versioning import ZoneVersioningService
 from app.services.backup import BindBackupService
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -211,14 +213,21 @@ async def download_all_zones_backup(
     accessible_zones = []
     
     if current_user.role == UserRole.ADMIN:
-        # Admin can access all zones - this would need to query PowerDNS directly
-        # For now, we'll get zones from permissions
-        result = await session.execute(
-            select(ZonePermission.zone_name)
-            .where(ZonePermission.can_read == True)
-            .distinct()
-        )
-        accessible_zones = [row[0] for row in result.fetchall()]
+        # Admin can access all zones - get them from PowerDNS directly
+        from app.services.powerdns import PowerDNSClient
+        powerdns = PowerDNSClient()
+        try:
+            zones_data = await powerdns.get_zones()
+            accessible_zones = [zone['name'] for zone in zones_data]
+        except Exception as e:
+            # Fallback to zones from permissions if PowerDNS is not available
+            logger.warning(f"Could not fetch zones from PowerDNS: {e}")
+            result = await session.execute(
+                select(ZonePermission.zone_name)
+                .where(ZonePermission.can_read == True)
+                .distinct()
+            )
+            accessible_zones = [row[0] for row in result.fetchall()]
     else:
         # Get zones from user permissions
         result = await session.execute(

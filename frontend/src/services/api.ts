@@ -93,7 +93,7 @@ export const authAPI = {
     first_name?: string;
     last_name?: string;
   }) => {
-    const response = await api.post('/auth/register', userData);
+    const response = await api.post('/auth/register/register', userData);
     return response.data;
   },
 
@@ -272,14 +272,14 @@ export const versioningAPI = {
 // Backup API
 export const backupAPI = {
   downloadZoneBackup: async (zoneName: string): Promise<Blob> => {
-    const response = await api.get(`/api/backup/zone/${zoneName}`, {
+    const response = await api.get(`/api/zones/${zoneName}/backup`, {
       responseType: 'blob',
     });
     return response.data;
   },
 
   downloadUserBackup: async (): Promise<Blob> => {
-    const response = await api.get('/api/backup/user', {
+    const response = await api.get('/api/zones/backup/all', {
       responseType: 'blob',
     });
     return response.data;
