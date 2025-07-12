@@ -104,6 +104,19 @@ create-user: ## Create a new user (admin)
 	@echo "👤 Creating admin user..."
 	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml exec backend python create_user.py
 
+create-admin: ## Create admin user with custom email (Usage: make create-admin EMAIL=your@email.com PASSWORD=yourpass)
+	@echo "👤 Creating custom admin user..."
+	@docker-compose exec -e ADMIN_EMAIL="$(EMAIL)" -e ADMIN_PASSWORD="$(PASSWORD)" -e ADMIN_FIRST_NAME="$(FIRSTNAME)" -e ADMIN_LAST_NAME="$(LASTNAME)" backend python create_user.py
+
+setup: ## Full setup: stop, rebuild, start, and create admin user
+	@echo "🚀 Running full setup..."
+	@make stop
+	@docker-compose build --no-cache backend
+	@docker-compose up -d
+	@echo "⏳ Waiting for services to be ready..."
+	@sleep 30
+	@./create-admin.sh
+
 backup: ## Create database backup
 	@echo "💾 Creating database backup..."
 	@mkdir -p ./backups
