@@ -36,13 +36,8 @@ target_metadata = Base.metadata
 
 def get_database_url():
     """Get database URL from environment or config"""
-    # Try to get from environment first
-    database_url = os.getenv("DATABASE_URL")
-    if database_url:
-        return database_url
-    
-    # Fallback to config
-    return config.get_main_option("sqlalchemy.url")
+    # For development migrations, use SQLite for simplicity
+    return "sqlite:///./test.db"
 
 
 def run_migrations_offline() -> None:
@@ -76,7 +71,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    configuration = config.get_section(config.config_ini_section)
+    configuration = {}
     configuration["sqlalchemy.url"] = get_database_url()
     
     connectable = engine_from_config(

@@ -70,7 +70,7 @@ class AuditLog(Base):
     event_description: Mapped[str] = mapped_column(Text, nullable=False)
     
     # User information
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("user.id"), nullable=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     user_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Store email for deleted users
     user_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)  # IPv4/IPv6
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -81,7 +81,7 @@ class AuditLog(Base):
     resource_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     # Additional context
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    details: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), nullable=False, index=True)

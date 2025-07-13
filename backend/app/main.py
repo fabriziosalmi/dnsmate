@@ -5,10 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from typing import Union
 from app.core.config import settings
-from app.api.routes import auth, zones, records, users, tokens, versioning
+from app.api.routes import auth, zones, records, users, tokens, versioning, security, audit
 from app.core.database import create_db_and_tables
 from app.core.auth import current_active_user
 from app.services.token_auth import get_current_api_user
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.models.user import User
 
 app = FastAPI(
@@ -28,6 +29,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
+
 # Dependency for dual authentication (JWT or API token)
 async def get_current_user(
     jwt_user: User = Depends(current_active_user),
@@ -38,6 +42,8 @@ async def get_current_user(
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
+app.include_router(security.router, tags=["security"])  # Security routes
+app.include_router(audit.router, tags=["audit"])  # Audit routes
 app.include_router(zones.router, prefix="/api/zones", tags=["zones"])
 app.include_router(records.router, prefix="/api/records", tags=["records"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
