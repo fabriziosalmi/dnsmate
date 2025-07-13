@@ -2,12 +2,15 @@
 
 import secrets
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTable
 from sqlalchemy import String, Boolean, Integer, ForeignKey, Text, Enum as SQLEnum, DateTime, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 import enum
+
+if TYPE_CHECKING:
+    from app.models.audit import AuditLog
 
 
 class UserRole(enum.Enum):
@@ -42,6 +45,7 @@ class User(SQLAlchemyBaseUserTable[int], Base):
     zone_permissions: Mapped[list["ZonePermission"]] = relationship("ZonePermission", back_populates="user", cascade="all, delete-orphan")
     api_tokens: Mapped[list["APIToken"]] = relationship("APIToken", back_populates="user", cascade="all, delete-orphan")
     zone_versions: Mapped[list["ZoneVersion"]] = relationship("ZoneVersion", back_populates="user", cascade="all, delete-orphan")
+    audit_logs: Mapped[list["AuditLog"]] = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
 
 
 class ZonePermission(Base):

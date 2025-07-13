@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import ZoneList from './components/ZoneList';
@@ -9,6 +10,8 @@ import ZoneDetail from './components/ZoneDetail';
 import UserManagement from './components/UserManagement';
 import { TokenManagement } from './components/TokenManagement';
 import { BackupManager } from './components/BackupManager';
+import Security from './components/Security';
+import Audit from './components/Audit';
 import Navigation from './components/Navigation';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -105,6 +108,24 @@ const AppContent: React.FC = () => {
           }
         />
         <Route
+          path="/security"
+          element={
+            <ProtectedRoute>
+              <Security />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit"
+          element={
+            <ProtectedRoute>
+              <AdminRoute>
+                <Audit />
+              </AdminRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/users"
           element={
             <ProtectedRoute>
@@ -122,9 +143,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

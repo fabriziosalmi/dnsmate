@@ -1,12 +1,16 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navigation: React.FC = () => {
   const { user, logout } = useAuth();
+  const location = useLocation();
 
   const handleLogout = async () => {
     await logout();
   };
+
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <nav className="bg-white shadow">
@@ -14,34 +18,72 @@ const Navigation: React.FC = () => {
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">DNSMate</h1>
+              <Link to="/zones" className="text-xl font-bold text-gray-900">DNSMate</Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <a
-                href="/zones"
-                className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+              <Link
+                to="/zones"
+                className={`${
+                  isActive('/zones') 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
               >
                 Zones
-              </a>
-              <a
-                href="/tokens"
-                className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+              </Link>
+              <Link
+                to="/tokens"
+                className={`${
+                  isActive('/tokens') 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
               >
                 API Tokens
-              </a>
-              <a
-                href="/backup"
-                className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+              </Link>
+              <Link
+                to="/backup"
+                className={`${
+                  isActive('/backup') 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
               >
                 Backup
-              </a>
+              </Link>
+              <Link
+                to="/security"
+                className={`${
+                  isActive('/security') 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+              >
+                Security
+              </Link>
               {user?.role === 'admin' && (
-                <a
-                  href="/users"
-                  className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  Users
-                </a>
+                <>
+                  <Link
+                    to="/users"
+                    className={`${
+                      isActive('/users') 
+                        ? 'border-blue-500 text-gray-900' 
+                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                  >
+                    Users
+                  </Link>
+                  <Link
+                    to="/audit"
+                    className={`${
+                      isActive('/audit') 
+                        ? 'border-blue-500 text-gray-900' 
+                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                  >
+                    Audit
+                  </Link>
+                </>
               )}
             </div>
           </div>

@@ -24,6 +24,25 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "production"
     
+    # Email settings
+    email_enabled: bool = False
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    from_email: str = "noreply@dnsmate.com"
+    from_name: str = "DNSMate"
+    frontend_url: str = "http://localhost:3000"
+    
+    # Rate limiting
+    redis_url: Optional[str] = None
+    rate_limit_enabled: bool = True
+    
+    # Logging
+    log_level: str = "INFO"
+    log_format: str = "json"  # json or text
+    log_file: Optional[str] = None
+    
     # CORS - can be overridden by CORS_ORIGINS environment variable
     @property
     def backend_cors_origins(self) -> list[str]:
