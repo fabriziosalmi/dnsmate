@@ -1,554 +1,438 @@
 # DNSMate
 
-A modern, full-featured DNS management interface for PowerDNS with user authentication, role-based access control, API token support, configuration versioning, and backup capabilities.
+A modern, full-featured DNS management interface for PowerDNS with user authentication, role-based access control, and a beautiful web interface.
 
-> **🐳 Docker-First Development**: DNSMate is designed to run completely in Docker containers for development, testing, and production. See [Complete Docker Guide](README-Docker.md) for detailed instructions.
+![DNSMate Dashboard](https://via.placeholder.com/800x400/1e3a8a/ffffff?text=DNSMate+Dashboard)
 
-## 🚀 Quick Start
+## 🚀 Quick Start (5 minutes)
 
 ### Prerequisites
-- Docker 20.0+ and Docker Compose 2.0+
-- Make (optional, for simplified commands)
+- Docker and Docker Compose installed
+- A PowerDNS instance (or use our test setup)
 
-### Start Development Environment
+### Step 1: Clone and Setup
 ```bash
-# Clone the repository
-git clone <repository-url>
+git clone https://github.com/fabriziosalmi/dnsmate.git
 cd dnsmate
-
-# Start development environment (with hot reload)
-make dev
-
-# Create an admin user
-make create-user
-
-# Check if everything is working
-./health-check.sh
 ```
 
-Your services will be available at:
-- 🌐 **Frontend**: http://localhost:3000 (React with hot reload)
-- 🔗 **Backend**: http://localhost:8000 (FastAPI with auto-reload)  
-- 📖 **API Docs**: http://localhost:8000/docs
-
-### Other Commands
+### Step 2: Start DNSMate
 ```bash
-make prod          # Start production environment
-make test          # Run tests in isolated containers
-make stop          # Stop all services
-make clean         # Clean up all Docker resources
-make logs          # View logs
-make status        # Check service status
+# For testing with a built-in PowerDNS instance
+./start-dev.sh
+
+# Wait for services to start (about 30 seconds)
 ```
 
-## 🚀 Features
+### Step 3: Create Your Admin User
+```bash
+# Create the first admin user
+./create-admin.sh
+# Follow the prompts to set email and password
+```
+
+### Step 4: Access DNSMate
+- **Web Interface**: http://localhost:3000
+- **API Documentation**: http://localhost:8000/docs
+
+### Step 5: Configure PowerDNS Server
+1. Login to DNSMate with your admin credentials
+2. Go to **Settings** > **PowerDNS** tab
+3. Click **"Add PowerDNS Server"**
+4. Fill in your PowerDNS details or use these test values:
+   ```
+   Server Name: Test PowerDNS
+   API URL: http://powerdns:8081
+   API Key: powerdns-secret-key
+   ```
+5. Click **"Test Connection"** to verify
+6. Click **"Create"** to save
+
+### Step 6: Start Managing DNS!
+1. Go to **Zones** to create your first DNS zone
+2. Add records to your zone
+3. Invite other users if needed
+
+---
+
+## 🌟 Features
 
 ### Core Features
-- **Dual Authentication**: JWT-based web authentication + API tokens for programmatic access
-- **Role-Based Access Control**: Admin, Editor, and Reader roles with granular permissions
-- **Zone Management**: Create, view, and delete DNS zones with validation
-- **Record Management**: Full CRUD operations for DNS records with type validation
-- **PowerDNS Integration**: Direct API integration with PowerDNS instances
+- **🌐 Web Interface**: Beautiful, responsive DNS management interface
+- **🔐 User Management**: Role-based access control (Admin, Editor, Reader)
+- **🎯 Zone Management**: Create, edit, and delete DNS zones
+- **📝 Record Management**: Full CRUD operations for all DNS record types
+- **🔑 API Access**: RESTful API with token authentication
 
 ### Advanced Features
-- **API Token Management**: Each user can create up to 10 API tokens for programmatic access
-- **Configuration Versioning**: Per-user versioning system with rollback capabilities
-- **BIND Backup Export**: Generate BIND-compatible zone file backups
-- **Usage Limits**: Configurable limits (1000 zones, 5000 records per zone per user)
-- **Comprehensive API Documentation**: Swagger/OpenAPI docs with examples
-- **Docker Support**: Multi-architecture Docker containers with Docker Compose
+- **🔄 Version Control**: Track and rollback DNS changes
+- **📦 Backup & Export**: BIND-compatible zone file backups
+- **🚀 Multi-Server**: Support for multiple PowerDNS instances
+- **⚡ Real-time Validation**: Instant feedback on DNS record validity
+- **📊 Connection Testing**: Test PowerDNS connectivity before saving
 
-### API & Documentation
-- **RESTful API**: Complete REST API with OpenAPI 3.0 specification
-- **Swagger UI**: Interactive API documentation at `/docs`
-- **ReDoc**: Alternative API documentation at `/redoc`
-- **API Token Authentication**: Bearer token authentication for API access
+---
 
-## Architecture
+## 📖 How to Use DNSMate
 
-### Backend (FastAPI)
-- **FastAPI**: Modern, fast web framework for building APIs
-- **FastAPI-Users**: Complete user management solution
-- **SQLAlchemy**: SQL toolkit and ORM
-- **PowerDNS API Client**: Custom client for PowerDNS integration
-- **JWT Authentication**: Secure token-based authentication
+### For First-Time Users
 
-### Frontend (React)
-- **React 18**: Modern React with hooks
-- **TypeScript**: Type-safe JavaScript
-- **Tailwind CSS**: Utility-first CSS framework
-- **React Router**: Client-side routing
-- **Axios**: HTTP client for API calls
-
-## User Roles & Permissions
-
-### Admin
-- Full system access including user management
-- Can create, edit, and delete zones
-- Can manage user permissions and API tokens
-- Access to user management interface
-- Can view and rollback all zone versions
-- No usage limits
-
-### Editor
-- Read/write access to assigned zones
-- Can create new zones (auto-assigned permissions)
-- Can manage records within assigned zones
-- Can create zone versions and rollback
-- Limited to 1000 zones, 5000 records per zone
-
-### Reader
-- Read-only access to assigned zones
-- Can view zones and records but cannot modify
-- Can download backups of accessible zones
-- Can view zone version history
-- No modification capabilities
-
-## 🚀 Quick Start with Docker (Recommended)
-
-### Option 1: With Test PowerDNS Instance (Easiest)
-
-Perfect for testing and development. Includes a preconfigured PowerDNS instance with test data.
-
+#### 1. Environment Setup
+Create your environment configuration:
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/dnsmate.git
-cd dnsmate
+# Copy the example environment file
+cp .env.example .env
 
-# Start everything with test PowerDNS instance
-./test-stack.sh start --with-powerdns
-
-# Create a test admin user
-./test-stack.sh user
-
-# Open in browser: http://localhost
-# Login: admin@dnsmate.com / admin123
+# Edit the configuration
+nano .env
 ```
 
-### Option 2: With External PowerDNS Instance
+Key settings in `.env`:
+```env
+# Database (PostgreSQL recommended for production)
+DATABASE_URL=postgresql://dnsmate:password@postgres:5432/dnsmate
 
-If you have an existing PowerDNS instance:
+# Security
+SECRET_KEY=your-super-secret-key-change-this
+JWT_SECRET=your-jwt-secret-key
 
+# PowerDNS (optional - can be configured via web interface)
+POWERDNS_API_URL=http://your-powerdns:8081
+POWERDNS_API_KEY=your-api-key
+
+# Frontend
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+#### 2. Production Deployment
 ```bash
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your PowerDNS settings
-
-# Start without built-in PowerDNS
-./test-stack.sh start
+# Start production services
+docker-compose -f docker-compose.yml up -d
 
 # Create admin user
-./test-stack.sh user
+docker-compose exec backend python create_admin_user.py
 ```
 
-### Test Script Commands
+### For Administrators
 
-The `test-stack.sh` script provides easy management:
+#### Adding PowerDNS Servers
+1. **Via Web Interface** (Recommended):
+   - Login as admin
+   - Go to Settings → PowerDNS tab
+   - Click "Add PowerDNS Server"
+   - Fill in connection details
+   - Test connection before saving
 
-```bash
-./test-stack.sh start [--with-powerdns]  # Start services
-./test-stack.sh stop                     # Stop services  
-./test-stack.sh restart [--with-powerdns] # Restart services
-./test-stack.sh logs                     # View logs
-./test-stack.sh health                   # Check health
-./test-stack.sh user                     # Create test admin user
-./test-stack.sh endpoints                # Show available URLs
-./test-stack.sh clean                    # Clean up everything
-```
-
-### Available Services
-
-When running with Docker:
-
-- **Frontend**: http://localhost (React web interface)
-- **Backend API**: http://localhost:8000 (FastAPI backend)
-- **API Docs**: http://localhost:8000/docs (Swagger UI)
-- **PowerDNS API**: http://localhost:8081 (if using --with-powerdns)
-- **Database**: localhost:5432 (PostgreSQL)
-
-## 🛠️ Manual Setup
-
-If you prefer to set up components individually:
-
-### Prerequisites
-- **Web Interface**: http://localhost
-- **API Documentation**: http://localhost/docs
-- **Alternative API Docs**: http://localhost/redoc
-- **Backend API**: http://localhost:8000
-
-### 4. Default Admin Setup
-```bash
-# Create first admin user via API
-curl -X POST "http://localhost:8000/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "password": "secure_password",
-    "role": "admin"
-  }'
-```
-
-### Backend Setup
-
-1. **Install Dependencies**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
+2. **PowerDNS Configuration Requirements**:
+   Your PowerDNS instance needs these settings in `pdns.conf`:
+   ```ini
+   # Enable API
+   api=yes
+   api-key=your-secure-api-key
+   
+   # Enable webserver for API access
+   webserver=yes
+   webserver-port=8081
+   webserver-address=0.0.0.0
+   webserver-allow-from=0.0.0.0/0
+   
+   # Optional: Enable CORS if needed
+   webserver-allow-cors-from=*
    ```
 
-2. **Configure Environment**
+#### Managing Users
+1. Go to **User Management** (admin only)
+2. Click **"Add User"** to invite new users
+3. Set their role:
+   - **Admin**: Full access to everything
+   - **Editor**: Can manage assigned zones
+   - **Reader**: Read-only access to assigned zones
+
+#### User Permissions
+- Assign zones to users in the User Management section
+- Users can only see zones they have access to
+- Admins see all zones by default
+
+### For Regular Users
+
+#### Managing DNS Zones
+1. **Create a Zone**:
+   - Go to **Zones** → **"Create Zone"**
+   - Enter domain name (e.g., `example.com`)
+   - Click **"Create"**
+
+2. **Add DNS Records**:
+   - Click on a zone to view records
+   - Click **"Add Record"**
+   - Choose record type and fill details:
+     ```
+     A Record:     www.example.com → 192.168.1.100
+     CNAME:        blog.example.com → www.example.com
+     MX Record:    example.com → mail.example.com (priority: 10)
+     TXT Record:   example.com → "v=spf1 include:_spf.google.com ~all"
+     ```
+
+3. **Edit/Delete Records**:
+   - Click the edit button on any record
+   - Make changes and save
+   - Use delete button to remove records
+
+#### API Access
+1. **Create API Token**:
+   - Go to **Token Management**
+   - Click **"Generate New Token"**
+   - Save the token securely (it won't be shown again)
+
+2. **Use API**:
    ```bash
-   cp .env.example .env
-   # Edit .env with your settings
+   # List zones
+   curl -H "Authorization: Bearer dnsmate_your_token" \
+        http://localhost:8000/api/zones/
+   
+   # Add A record
+   curl -X POST \
+        -H "Authorization: Bearer dnsmate_your_token" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"api.example.com","type":"A","content":"1.2.3.4","ttl":300}' \
+        http://localhost:8000/api/records/example.com
    ```
 
-3. **Set Environment Variables**
-   ```bash
-   # Required settings in .env
-   SECRET_KEY=your-secret-key-change-this-in-production
-   DATABASE_URL=sqlite:///./dnsmate.db
-   POWERDNS_API_URL=http://localhost:8081
-   POWERDNS_API_KEY=your-powerdns-api-key
-   JWT_SECRET=your-jwt-secret-key
-   ```
+---
 
-4. **Run Backend**
-   ```bash
-   python run.py
-   ```
+## 🔧 Configuration Guide
 
-   The API will be available at `http://localhost:8000`
-   - API Documentation: `http://localhost:8000/docs`
-   - Alternative Docs: `http://localhost:8000/redoc`
+### Environment Variables
 
-### Frontend Setup
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `DATABASE_URL` | Database connection string | SQLite file | ✅ |
+| `SECRET_KEY` | Application secret key | - | ✅ |
+| `JWT_SECRET` | JWT token signing key | - | ✅ |
+| `POWERDNS_API_URL` | PowerDNS API endpoint | - | Optional* |
+| `POWERDNS_API_KEY` | PowerDNS API key | - | Optional* |
+| `BACKEND_CORS_ORIGINS` | Allowed CORS origins | `["*"]` | No |
 
-1. **Install Dependencies**
-   ```bash
-   cd frontend
-   npm install
-   ```
+*PowerDNS settings can be configured via the web interface instead of environment variables.
 
-2. **Start Development Server**
-   ```bash
-   npm start
-   ```
+### Docker Compose Services
 
-   The frontend will be available at `http://localhost:3000`
+The application consists of several services:
 
-### PowerDNS Configuration
+- **Frontend** (port 3000): React web interface
+- **Backend** (port 8000): FastAPI REST API
+- **Database** (port 5432): PostgreSQL database
+- **PowerDNS** (port 53, 8081): Optional test DNS server
 
-Ensure your PowerDNS instance has the API enabled:
+### Development vs Production
 
-```ini
-# pdns.conf
-api=yes
-api-key=your-api-key-here
-webserver=yes
-webserver-address=0.0.0.0
-webserver-port=8081
-webserver-allow-from=127.0.0.1,::1
-```
+**Development** (`docker-compose.dev.yml`):
+- Hot reload for code changes
+- SQLite database
+- Debug logging enabled
+- CORS allows all origins
 
-## Project Structure
+**Production** (`docker-compose.yml`):
+- Optimized builds
+- PostgreSQL database
+- Production logging
+- Secure CORS settings
 
-```
-dnsmate/
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── routes/     # API route definitions
-│   │   ├── core/           # Core configuration and auth
-│   │   ├── models/         # SQLAlchemy models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── services/       # Business logic and external APIs
-│   │   └── main.py         # FastAPI application
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── run.py             # Development server
-├── frontend/               # React frontend
-│   ├── public/
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── contexts/       # React contexts
-│   │   ├── services/       # API client and services
-│   │   └── App.tsx
-│   ├── package.json
-│   └── tailwind.config.js
-└── README.md
-```
+---
 
-## API Usage Examples
+## 🛠️ Development
 
-### Authentication
-```bash
-# Login to get JWT token
-curl -X POST "http://localhost:8000/auth/jwt/login" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=user@example.com&password=password"
+### Local Development Setup
 
-# Create API token
-curl -X POST "http://localhost:8000/api/tokens/" \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My API Token",
-    "description": "Token for automation scripts"
-  }'
-```
-
-### Zone Management
-```bash
-# List zones (with API token)
-curl -X GET "http://localhost:8000/api/zones/" \
-  -H "Authorization: Bearer dnsmate_<your_api_token>"
-
-# Create zone
-curl -X POST "http://localhost:8000/api/zones/" \
-  -H "Authorization: Bearer dnsmate_<your_api_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "example.com",
-    "kind": "Native"
-  }'
-```
-
-### Record Management
-```bash
-# Create A record
-curl -X POST "http://localhost:8000/api/records/example.com" \
-  -H "Authorization: Bearer dnsmate_<your_api_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "www.example.com",
-    "type": "A",
-    "content": "192.168.1.100",
-    "ttl": 300
-  }'
-
-# List records
-curl -X GET "http://localhost:8000/api/records/example.com" \
-  -H "Authorization: Bearer dnsmate_<your_api_token>"
-```
-
-### Versioning & Backup
-```bash
-# Create version snapshot
-curl -X POST "http://localhost:8000/api/zones/example.com/versions" \
-  -H "Authorization: Bearer dnsmate_<your_api_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "description": "Before adding new records",
-    "changes_summary": "Backup before bulk changes"
-  }'
-
-# Download zone backup
-curl -X GET "http://localhost:8000/api/zones/example.com/backup" \
-  -H "Authorization: Bearer dnsmate_<your_api_token>" \
-  -o example.com.zone
-
-# Download all zones backup
-curl -X GET "http://localhost:8000/api/zones/backup/all" \
-  -H "Authorization: Bearer dnsmate_<your_api_token>" \
-  -o all_zones_backup.zone
-```
-
-## Development Setup
-
-### Backend Development
-
-1. **Setup Python Environment**
+1. **Backend Development**:
    ```bash
    cd backend
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate
    pip install -r requirements.txt
-   ```
-
-2. **Configure Environment**
-   ```bash
+   
+   # Copy and configure environment
    cp .env.example .env
-   # Edit .env with your settings
-   ```
-
-3. **Run Backend**
-   ```bash
+   
+   # Run development server
    python run.py
    ```
 
-### Frontend Development
-
-1. **Install Dependencies**
+2. **Frontend Development**:
    ```bash
    cd frontend
    npm install
-   ```
-
-2. **Start Development Server**
-   ```bash
    npm start
    ```
 
+### Project Structure
+```
+dnsmate/
+├── backend/               # FastAPI backend
+│   ├── app/
+│   │   ├── api/routes/    # API endpoints
+│   │   ├── core/          # Auth & config
+│   │   ├── models/        # Database models
+│   │   ├── schemas/       # API schemas
+│   │   └── services/      # Business logic
+│   ├── migrations/        # Database migrations
+│   └── requirements.txt
+├── frontend/              # React frontend
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── contexts/      # State management
+│   │   └── services/      # API clients
+│   ├── package.json
+│   └── tailwind.config.js
+├── docker-compose.yml     # Production setup
+├── docker-compose.dev.yml # Development setup
+└── README.md
+```
+
 ### API Documentation
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
 
-The backend provides comprehensive API documentation:
-- **Swagger UI**: `http://localhost:8000/docs` - Interactive API explorer
-- **ReDoc**: `http://localhost:8000/redoc` - Alternative documentation format
-- **OpenAPI Spec**: `http://localhost:8000/openapi.json` - Machine-readable specification
+---
 
-## Production Deployment
+## 🚀 Production Deployment
 
 ### Using Docker (Recommended)
 
-1. **Prepare Environment**
+1. **Prepare Environment**:
    ```bash
    cp .env.example .env
-   # Edit .env with production values
+   # Edit .env with production settings
    ```
 
-2. **Deploy with Docker Compose**
+2. **Deploy**:
    ```bash
-   docker-compose -f docker-compose.yml up -d
+   docker-compose up -d
    ```
 
-3. **Scale Services** (optional)
+3. **Create Admin User**:
    ```bash
-   docker-compose up -d --scale backend=3
+   docker-compose exec backend python create_admin_user.py
    ```
 
-### Manual Deployment
+4. **Configure Reverse Proxy** (nginx example):
+   ```nginx
+   server {
+       listen 80;
+       server_name your-domain.com;
+       
+       location / {
+           proxy_pass http://localhost:3000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+       
+       location /api/ {
+           proxy_pass http://localhost:8000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+   }
+   ```
 
-#### Backend
-- Use a production WSGI server (Gunicorn + Uvicorn)
-- Configure PostgreSQL instead of SQLite
-- Set strong secret keys
-- Enable HTTPS
-- Configure proper CORS origins
+### Production Checklist
 
-#### Frontend
-- Build for production: `npm run build`
-- Serve with nginx or similar web server
-- Configure proper proxy settings
-- Enable gzip compression and caching
+- [ ] Use PostgreSQL instead of SQLite
+- [ ] Set strong, unique `SECRET_KEY` and `JWT_SECRET`
+- [ ] Configure proper CORS origins
+- [ ] Use HTTPS in production
+- [ ] Set up regular database backups
+- [ ] Monitor application logs
+- [ ] Configure PowerDNS with secure API key
 
-## Configuration Versioning
+---
 
-DNSMate includes a powerful versioning system that automatically tracks changes:
+## 🤝 User Roles & Permissions
 
-### Features
-- **Automatic Snapshots**: Create version snapshots before major changes
-- **Rollback Capability**: Restore any zone to a previous configuration
-- **Change Tracking**: View detailed differences between versions
-- **Per-User Versioning**: Each user's changes are tracked separately
-- **Cleanup**: Automatically keeps the last 100 versions per zone
+### Admin Role
+- ✅ Manage all DNS zones and records
+- ✅ User management (create, edit, delete users)
+- ✅ PowerDNS server configuration
+- ✅ System settings and configuration
+- ✅ View all logs and system status
+- ✅ No usage limits
 
-### Usage
-1. Create a snapshot before making changes
-2. Make your DNS modifications
-3. If something goes wrong, rollback to the previous version
-4. Compare versions to see what changed
+### Editor Role
+- ✅ Create and manage own DNS zones
+- ✅ Manage records in assigned zones
+- ✅ Create zone backups and versions
+- ✅ Generate API tokens
+- ❌ User management
+- ❌ System configuration
+- 📊 Limited to 1000 zones, 5000 records per zone
 
-## BIND Backup System
+### Reader Role
+- ✅ View assigned DNS zones and records
+- ✅ Download zone backups
+- ✅ View zone history
+- ❌ Create or modify zones/records
+- ❌ User management
+- ❌ System configuration
+- 📊 No modification limits (read-only)
 
-Generate BIND-compatible zone files for backup and migration:
+---
 
-### Features
-- **Standard BIND Format**: Compatible with standard BIND DNS servers
-- **Single Zone Export**: Download individual zone files
-- **Bulk Export**: Download all accessible zones in one file
-- **Named.conf Generation**: Get configuration snippets for BIND
-- **Automatic Comments**: Includes metadata and timestamps
+## ❓ Troubleshooting
 
-### Use Cases
-- **Disaster Recovery**: Keep offline backups of your DNS configuration
-- **Migration**: Move zones between different DNS systems
-- **Compliance**: Meet backup requirements for DNS infrastructure
-- **Testing**: Set up test environments with production data
+### Common Issues
 
-## Usage Limits & Quotas
+**"Failed to fetch PowerDNS settings"**
+- Check that PowerDNS API is enabled and accessible
+- Verify API key is correct
+- Check network connectivity between DNSMate and PowerDNS
 
-DNSMate includes configurable limits to prevent abuse:
+**"Authentication required" errors**
+- Make sure you're logged in as an admin user
+- Check that JWT tokens haven't expired
+- Verify API tokens are correctly formatted (`dnsmate_` prefix)
 
-### Default Limits
-- **Zones per User**: 1000 zones maximum
-- **Records per Zone**: 5000 records maximum
-- **API Tokens per User**: 10 tokens maximum
-- **Zone Versions**: 100 versions kept per zone
+**Zones not showing up**
+- Ensure user has permissions to the zone
+- Check that PowerDNS server is configured and connected
+- Verify zone exists in PowerDNS backend
 
-### Customization
-Administrators can adjust limits per user:
+**Connection refused to database**
+- Make sure PostgreSQL is running
+- Check database credentials in `.env`
+- Ensure database exists and is accessible
+
+### Health Checks
 ```bash
-# Update user limits via API
-curl -X PATCH "http://localhost:8000/api/users/{user_id}" \
-  -H "Authorization: Bearer <admin_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "max_zones": 2000,
-    "max_records_per_zone": 10000,
-    "max_api_tokens": 20
-  }'
+# Check if all services are running
+docker-compose ps
+
+# Check service health
+curl http://localhost:8000/api/health
+
+# View service logs
+docker-compose logs backend
+docker-compose logs frontend
 ```
 
-## Development
+### Getting Help
+- 📖 Check the [API Documentation](http://localhost:8000/docs)
+- 🐛 [Report Issues](https://github.com/fabriziosalmi/dnsmate/issues)
+- 💬 [Discussion Forum](https://github.com/fabriziosalmi/dnsmate/discussions)
 
-### Backend Development
+---
 
-The backend uses FastAPI with automatic API documentation. Key development features:
+## 📝 License
 
-- Hot reload enabled in development mode
-- Automatic OpenAPI schema generation
-- SQLAlchemy ORM with async support
-- Pydantic for data validation
-- FastAPI-Users for authentication
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-### Frontend Development
-
-The frontend is built with modern React patterns:
-
-- TypeScript for type safety
-- React Hooks for state management
-- Context API for global state
-- Tailwind CSS for styling
-- Axios for HTTP requests
-
-## Security
-
-- JWT tokens for authentication
-- Role-based access control
-- Input validation with Pydantic
-- CORS protection
-- Environment variable configuration
-
-## Production Deployment
-
-### Backend
-- Use a production WSGI server (Gunicorn + Uvicorn)
-- Configure PostgreSQL instead of SQLite
-- Set strong secret keys
-- Enable HTTPS
-- Configure proper CORS origins
-
-### Frontend
-- Build for production: `npm run build`
-- Serve static files with a web server
-- Configure environment variables
-- Enable gzip compression
-
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+---
 
-This project is licensed under the MIT License.
-
-## Support
-
-For issues and questions:
-- Create an issue in the GitHub repository
-- Check the API documentation at `/docs`
-- Review the code examples in the repository
+**Made with ❤️ for the DNS community**

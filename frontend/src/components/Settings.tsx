@@ -9,6 +9,21 @@ interface PasswordChangeForm {
   confirm_password: string;
 }
 
+interface APIToken {
+  id: number;
+  name: string;
+  description?: string;
+  token?: string;
+  created_at: string;
+  last_used?: string;
+  is_active: boolean;
+}
+
+interface APITokenFormData {
+  name: string;
+  description: string;
+}
+
 interface PowerDNSSetting {
   id: number;
   name: string;
@@ -43,7 +58,7 @@ interface SettingsFormData {
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'password' | 'powerdns'>('password');
+  const [activeTab, setActiveTab] = useState<'password' | 'tokens' | 'powerdns'>('password');
   
   // Password change state
   const [passwordForm, setPasswordForm] = useState<PasswordChangeForm>({
@@ -52,6 +67,14 @@ const Settings: React.FC = () => {
     confirm_password: ''
   });
   const [passwordStrength, setPasswordStrength] = useState<{score: number; description: string} | null>(null);
+  
+  // API Tokens state
+  const [tokens, setTokens] = useState<APIToken[]>([]);
+  const [showTokenForm, setShowTokenForm] = useState(false);
+  const [tokenForm, setTokenForm] = useState<APITokenFormData>({
+    name: '',
+    description: ''
+  });
   
   // PowerDNS settings state (admin only)
   const [settings, setSettings] = useState<PowerDNSSetting[]>([]);
@@ -73,6 +96,7 @@ const Settings: React.FC = () => {
     if (user?.role === 'admin') {
       fetchSettings();
     }
+    fetchTokens();
   }, [user]);
 
   // Handle URL hash to open specific tab
@@ -80,6 +104,8 @@ const Settings: React.FC = () => {
     const hash = window.location.hash;
     if (hash === '#powerdns' && user?.role === 'admin') {
       setActiveTab('powerdns');
+    } else if (hash === '#tokens') {
+      setActiveTab('tokens');
     }
   }, [user]);
 
@@ -132,6 +158,106 @@ const Settings: React.FC = () => {
     } catch (error) {
       console.error('Failed to check password strength:', error);
     }
+  };
+
+  // API Token functions
+  const fetchTokens = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.get('/api/tokens/');
+      setTokens(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to fetch API tokens');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetTokenForm = () => {
+    setTokenForm({ name: '', description: '' });
+    setShowTokenForm(false);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Token copied to clipboard!');
+    }).catch(() => {
+      toast.error('Failed to copy token to clipboard');
+    });
+  };
+
+  const handleTokenSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      setLoading(true);
+      const response = await apiService.post('/api/tokens/', tokenForm);
+      const newToken = response.data;
+      
+      toast.success('API token created successfully');
+      
+      // Show the token to the user (it will only be shown once)
+      if (newToken.token) {
+        toast(
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <span className="text-green-500">✅</span>
+              <div className="font-medium">Your new API token:</div>
+            </div>
+            <div className="bg-gray-100 p-3 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <code className="text-sm font-mono break-all text-gray-800">
+                  {newToken.token}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(newToken.token)}
+                  className="ml-2 p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded"
+                  title="Copy to clipboard"
+                >
+                  📋
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-gray-600 flex items-center space-x-1">
+              <span>⚠️</span>
+              <span>Save this token now - you won't be able to see it again!</span>
+            </div>
+          </div>,
+          { duration: 15000 }
+        );
+      }
+      
+      resetTokenForm();
+      fetchTokens();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to create API token');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteToken = async (id: number, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the token "${name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await apiService.delete(`/api/tokens/${id}`);
+      toast.success('API token deleted successfully');
+      fetchTokens();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to delete API token');
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getPasswordStrengthColor = (score: number) => {
@@ -301,6 +427,17 @@ const Settings: React.FC = () => {
               <span>🔑</span>
               <span>Password</span>
             </button>
+            <button
+              onClick={() => setActiveTab('tokens')}
+              className={`${
+                activeTab === 'tokens'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+            >
+              <span>🔐</span>
+              <span>API Tokens</span>
+            </button>
             {user?.role === 'admin' && (
               <button
                 onClick={() => setActiveTab('powerdns')}
@@ -408,6 +545,237 @@ const Settings: React.FC = () => {
                   <li>• Include numbers and special characters</li>
                   <li>• Avoid using personal information or common words</li>
                   <li>• Use a unique password for this account</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* API Tokens Tab - Available to all users */}
+          {activeTab === 'tokens' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">API Tokens</h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Create and manage API tokens for programmatic access to DNSMate.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowTokenForm(true)}
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  <span>➕</span>
+                  <span>Create Token</span>
+                </button>
+              </div>
+
+              {/* Create Token Form */}
+              {showTokenForm && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-500 text-lg">🔐</span>
+                      <h4 className="text-md font-semibold">Create New API Token</h4>
+                    </div>
+                    <button
+                      onClick={resetTokenForm}
+                      className="text-gray-400 hover:text-gray-600 text-lg"
+                      title="Close form"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleTokenSubmit} className="space-y-4">
+                    <div>
+                      <label className="flex items-center space-x-1 text-sm font-medium text-gray-700 mb-1">
+                        <span>📝</span>
+                        <span>Token Name *</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={tokenForm.name}
+                        onChange={(e) => setTokenForm({ ...tokenForm, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g., My Automation Script"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="flex items-center space-x-1 text-sm font-medium text-gray-700 mb-1">
+                        <span>💬</span>
+                        <span>Description</span>
+                      </label>
+                      <textarea
+                        value={tokenForm.description}
+                        onChange={(e) => setTokenForm({ ...tokenForm, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                        rows={2}
+                        placeholder="What will this token be used for?"
+                      />
+                    </div>
+                    
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        type="button"
+                        onClick={resetTokenForm}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {loading ? (
+                          <>
+                            <span className="animate-spin">⏳</span>
+                            <span>Creating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>🚀</span>
+                            <span>Create Token</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Tokens List */}
+              <div className="bg-white border border-gray-200 rounded-lg">
+                {loading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : tokens.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <div className="text-gray-400 text-6xl mb-4">🔐</div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No API tokens created</h3>
+                    <p className="text-gray-500 mb-4">
+                      Create your first API token to access DNSMate programmatically.
+                    </p>
+                    <button
+                      onClick={() => setShowTokenForm(true)}
+                      className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 mx-auto"
+                    >
+                      <span>🚀</span>
+                      <span>Create Your First Token</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Token Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Created
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Last Used
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {tokens.map((token) => (
+                          <tr key={token.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-blue-500">🔑</span>
+                                  <div className="text-sm font-medium text-gray-900">{token.name}</div>
+                                </div>
+                                {token.description && (
+                                  <div className="text-sm text-gray-500 ml-6">{token.description}</div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <div className="flex items-center space-x-1">
+                                <span>📅</span>
+                                <span>{formatDate(token.created_at)}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <div className="flex items-center space-x-1">
+                                <span>{token.last_used ? '🕐' : '⏸️'}</span>
+                                <span>{token.last_used ? formatDate(token.last_used) : 'Never'}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  token.is_active
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                <span className="mr-1">{token.is_active ? '✅' : '❌'}</span>
+                                {token.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <button
+                                onClick={() => handleDeleteToken(token.id, token.name)}
+                                className="text-red-600 hover:text-red-900 flex items-center space-x-1"
+                                title="Delete token"
+                              >
+                                <span>🗑️</span>
+                                <span>Delete</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Help Section */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <span className="text-blue-500 text-lg">💡</span>
+                  <h4 className="font-semibold text-blue-800">Using API Tokens</h4>
+                </div>
+                <ul className="text-sm text-blue-700 space-y-2">
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-500 mt-0.5">🔌</span>
+                    <span>API tokens allow you to access DNSMate programmatically</span>
+                  </li>
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-500 mt-0.5">🔑</span>
+                    <span>Include the token in the Authorization header: <code className="bg-blue-100 px-1 rounded">Authorization: Bearer dnsmate_your_token</code></span>
+                  </li>
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-500 mt-0.5">👀</span>
+                    <span>Tokens are only shown once when created - save them securely</span>
+                  </li>
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-500 mt-0.5">📊</span>
+                    <span>You can create up to 10 API tokens per account</span>
+                  </li>
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-500 mt-0.5">🗑️</span>
+                    <span>Delete tokens you no longer need to maintain security</span>
+                  </li>
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-500 mt-0.5">📚</span>
+                    <span>API documentation is available at <a href="/docs" className="underline hover:text-blue-900">http://localhost:8000/docs</a></span>
+                  </li>
                 </ul>
               </div>
             </div>
