@@ -17,6 +17,19 @@ dev: ## Start development environment with hot reload
 	@echo "🔗 Backend API: http://localhost:8000"
 	@echo "📖 API Docs: http://localhost:8000/docs"
 
+dev-full: ## Start development environment with PowerDNS for testing
+	@echo "🚀 Starting development environment with PowerDNS..."
+	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml --profile with-powerdns up -d postgres
+	@echo "⏳ Waiting for database to be ready..."
+	@sleep 15
+	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml --profile with-powerdns up -d backend frontend-dev powerdns
+	@echo "✅ Development environment with PowerDNS started!"
+	@echo "🌐 Frontend: http://localhost:3000"
+	@echo "🔗 Backend API: http://localhost:8000"
+	@echo "📖 API Docs: http://localhost:8000/docs"
+	@echo "🌐 PowerDNS API: http://localhost:8081"
+	@echo "💡 Test PowerDNS settings: URL=http://powerdns:8081, Key=dnsmate-test-key"
+
 prod: ## Start production environment
 	@echo "🚀 Starting production environment..."
 	@docker-compose --env-file .env.production up -d --build
@@ -34,6 +47,24 @@ test: ## Run tests in isolated environment
 	@echo "🧹 Cleaning up test environment..."
 	@docker-compose -f docker-compose.test.yml down
 
+test-e2e: ## Run end-to-end Playwright tests (requires dev environment)
+	@echo "🧪 Running end-to-end tests..."
+	@./run-tests.sh
+
+test-flows: ## Run comprehensive user flow tests (requires dev environment)
+	@echo "🧪 Running user flow tests..."
+	@if ! ./health-check.sh; then echo "❌ Services not ready. Run 'make dev-full' first."; exit 1; fi
+	@cd tests && npm run test:flows
+
+test-integration: ## Run PowerDNS integration tests (requires dev environment)
+	@echo "🧪 Running integration tests..."
+	@if ! ./health-check.sh; then echo "❌ Services not ready. Run 'make dev-full' first."; exit 1; fi
+	@cd tests && npm run test:integration
+
+test-verify: ## Verify PowerDNS data matches UI
+	@echo "🔍 Verifying PowerDNS data..."
+	@./verify-powerdns.sh
+
 test-watch: ## Run tests in watch mode
 	@echo "🧪 Running tests in watch mode..."
 	@docker-compose -f docker-compose.test.yml up -d postgres-test powerdns-test
@@ -43,6 +74,7 @@ test-watch: ## Run tests in watch mode
 
 stop: ## Stop all running services
 	@echo "🛑 Stopping all services..."
+	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml --profile with-powerdns down 2>/dev/null || true
 	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml down 2>/dev/null || true
 	@docker-compose --env-file .env.production down 2>/dev/null || true
 	@docker-compose -f docker-compose.test.yml down 2>/dev/null || true
@@ -107,6 +139,21 @@ create-user: ## Create a new user (admin)
 create-admin: ## Create admin user with custom email (Usage: make create-admin EMAIL=your@email.com PASSWORD=yourpass)
 	@echo "👤 Creating custom admin user..."
 	@docker-compose exec -e ADMIN_EMAIL="$(EMAIL)" -e ADMIN_PASSWORD="$(PASSWORD)" -e ADMIN_FIRST_NAME="$(FIRSTNAME)" -e ADMIN_LAST_NAME="$(LASTNAME)" backend python create_user.py
+
+demo-setup: ## Setup complete demo environment with users and zones
+	@echo "🎭 Setting up demo environment..."
+	@if ! ./health-check.sh; then echo "❌ Services not ready. Run 'make dev-full' first."; exit 1; fi
+	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml exec backend python setup_demo.py
+	@echo "🎉 Demo environment ready! Visit http://localhost:3000"
+
+demo-users: ## Create demo users only (without zones)
+	@echo "👥 Creating demo users..."
+	@if ! ./health-check.sh; then echo "❌ Services not ready. Run 'make dev-full' first."; exit 1; fi
+	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml exec backend python create_demo_users.py
+
+demo-cleanup: ## Clean up demo environment (delete demo users and zones)
+	@echo "🧹 Cleaning up demo environment..."
+	@docker-compose --env-file .env.development -f docker-compose.yml -f docker-compose.dev.yml exec backend python setup_demo.py --cleanup
 
 setup: ## Full setup: stop, rebuild, start, and create admin user
 	@echo "🚀 Running full setup..."

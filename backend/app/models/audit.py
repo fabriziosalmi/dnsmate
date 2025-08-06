@@ -1,7 +1,7 @@
 """Audit logging models and service"""
 
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from sqlalchemy import String, DateTime, JSON, Text, Integer, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,9 @@ import enum
 import json
 
 from app.core.database import Base
-from app.models.user import User
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class AuditEventType(enum.Enum):
@@ -91,7 +93,7 @@ class AuditLog(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Relationships
-    user: Mapped[Optional[User]] = relationship("User", back_populates="audit_logs")
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="audit_logs")
 
 
 class AuditService:
@@ -104,7 +106,7 @@ class AuditService:
         self,
         event_type: AuditEventType,
         description: str,
-        user: Optional[User] = None,
+        user: Optional["User"] = None,
         user_id: Optional[int] = None,
         user_email: Optional[str] = None,
         user_ip: Optional[str] = None,
@@ -174,7 +176,7 @@ class AuditService:
         self,
         event_type: AuditEventType,
         zone_name: str,
-        user: User,
+        user: "User",
         user_ip: Optional[str] = None,
         user_agent: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
@@ -201,7 +203,7 @@ class AuditService:
         zone_name: str,
         record_name: str,
         record_type: str,
-        user: User,
+        user: "User",
         user_ip: Optional[str] = None,
         user_agent: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None

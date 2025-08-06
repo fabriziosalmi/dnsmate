@@ -1,0 +1,18 @@
+{
+  "name": "dnsmate-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for DNSMate",
+  "scripts": {
+    "test": "playwright test e2e/quick-powerdns-test.spec.ts",
+    "test:all": "playwright test",
+    "test:flows": "playwright test e2e/comprehensive-user-flows.spec.ts",
+    "test:integration": "playwright test e2e/powerdns-integration.spec.ts", 
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.0.0"
+  }
+}

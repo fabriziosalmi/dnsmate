@@ -11,9 +11,11 @@ from app.schemas.settings import (
     PowerDNSSettingCreate,
     PowerDNSSettingUpdate, 
     PowerDNSSettingPublic,
-    PowerDNSTestResult
+    PowerDNSTestResult,
+    VersioningSettings,
+    VersioningSettingsUpdate
 )
-from app.services.settings import PowerDNSSettingsService
+from app.services.settings import PowerDNSSettingsService, versioning_settings_service
 
 router = APIRouter()
 
@@ -116,3 +118,22 @@ async def test_powerdns_connection(
         verify_ssl=setting.verify_ssl
     )
     return result
+
+
+@router.get("/versioning", response_model=VersioningSettings)
+async def get_versioning_settings(
+    current_user: User = Depends(current_admin_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """Get versioning settings (admin only)"""
+    return await versioning_settings_service.get_versioning_settings(session)
+
+
+@router.post("/versioning", response_model=VersioningSettings)
+async def update_versioning_settings(
+    settings_data: VersioningSettingsUpdate,
+    current_user: User = Depends(current_admin_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """Update versioning settings (admin only)"""
+    return await versioning_settings_service.update_versioning_settings(session, settings_data)

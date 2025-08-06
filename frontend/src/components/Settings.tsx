@@ -58,7 +58,7 @@ interface SettingsFormData {
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'password' | 'tokens' | 'powerdns'>('password');
+  const [activeTab, setActiveTab] = useState<'password' | 'tokens' | 'powerdns' | 'versioning'>('password');
   
   // Password change state
   const [passwordForm, setPasswordForm] = useState<PasswordChangeForm>({
@@ -92,11 +92,22 @@ const Settings: React.FC = () => {
     verify_ssl: true,
   });
 
+  // Versioning settings state
+  const [versioningSettings, setVersioningSettings] = useState({
+    auto_version_enabled: true,
+    auto_version_on_record_change: true,
+    auto_version_on_zone_change: true,
+    max_versions_per_zone: 100,
+    version_retention_days: 90
+  });
+  const [versioningLoading, setVersioningLoading] = useState(false);
+
   useEffect(() => {
     if (user?.role === 'admin') {
       fetchSettings();
     }
     fetchTokens();
+    fetchVersioningSettings();
   }, [user]);
 
   // Handle URL hash to open specific tab
@@ -396,6 +407,37 @@ const Settings: React.FC = () => {
     }
   };
 
+  // Versioning settings functions
+  const fetchVersioningSettings = async () => {
+    try {
+      setVersioningLoading(true);
+      const response = await apiService.get('/api/settings/versioning');
+      setVersioningSettings(response.data);
+    } catch (error: any) {
+      // If no settings exist, use defaults
+      if (error.response?.status === 404) {
+        // Keep default settings
+      } else {
+        toast.error('Failed to fetch versioning settings');
+      }
+    } finally {
+      setVersioningLoading(false);
+    }
+  };
+
+  const handleVersioningSettingsUpdate = async (newSettings: typeof versioningSettings) => {
+    try {
+      setVersioningLoading(true);
+      await apiService.post('/api/settings/versioning', newSettings);
+      setVersioningSettings(newSettings);
+      toast.success('Versioning settings updated successfully');
+    } catch (error: any) {
+      toast.error('Failed to update versioning settings');
+    } finally {
+      setVersioningLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -411,6 +453,36 @@ const Settings: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-600">Manage your account settings and system configuration</p>
       </div>
+
+      {/* PowerDNS Setup Banner - Show only for admin users with no PowerDNS servers */}
+      {user?.role === 'admin' && settings.length === 0 && activeTab !== 'powerdns' && (
+        <div className="mb-6 bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <span className="text-2xl">🚀</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-blue-900">
+                  Ready to set up DNS management?
+                </h3>
+                <p className="text-sm text-blue-700">
+                  Configure a PowerDNS server to start managing DNS zones and records.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setActiveTab('powerdns')}
+                className="flex items-center space-x-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
+              >
+                <span>⚡</span>
+                <span>Quick Setup</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="bg-white shadow rounded-lg">
@@ -438,6 +510,19 @@ const Settings: React.FC = () => {
               <span>🔐</span>
               <span>API Tokens</span>
             </button>
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('versioning')}
+                className={`${
+                  activeTab === 'versioning'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+              >
+                <span>📋</span>
+                <span>Auto Versioning</span>
+              </button>
+            )}
             {user?.role === 'admin' && (
               <button
                 onClick={() => setActiveTab('powerdns')}
@@ -793,22 +878,97 @@ const Settings: React.FC = () => {
                 </div>
                 <button
                   onClick={() => setShowCreateForm(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                 >
-                  Add PowerDNS Server
+                  <span>➕</span>
+                  <span>Add PowerDNS Server</span>
                 </button>
               </div>
+
+              {/* Quick Setup Cards for new users */}
+              {settings.length === 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {/* Built-in PowerDNS Option */}
+                  <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <span className="text-green-500 text-2xl">🚀</span>
+                      <h4 className="font-semibold text-green-800">Quick Test Setup</h4>
+                      <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">Recommended</span>
+                    </div>
+                    <p className="text-sm text-green-700 mb-3">
+                      Use our built-in PowerDNS instance for testing and learning DNSMate.
+                    </p>
+                    <div className="bg-green-100 p-3 rounded-lg mb-3">
+                      <div className="text-xs font-medium text-green-800 mb-2">Test Server Details:</div>
+                      <div className="space-y-1 text-xs text-green-700 font-mono">
+                        <div>🌐 URL: http://powerdns:8081</div>
+                        <div>🔑 API Key: dnsmate-test-key</div>
+                        <div>📝 Name: Test PowerDNS</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setFormData({
+                          name: 'Test PowerDNS',
+                          api_url: 'http://powerdns:8081',
+                          api_key: 'dnsmate-test-key',
+                          description: 'Built-in PowerDNS instance for testing',
+                          is_default: true,
+                          timeout: 30,
+                          verify_ssl: false,
+                        });
+                        setShowCreateForm(true);
+                      }}
+                      className="w-full flex items-center justify-center space-x-2 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm"
+                    >
+                      <span>⚡</span>
+                      <span>Use Test Server</span>
+                    </button>
+                  </div>
+
+                  {/* Custom PowerDNS Option */}
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <span className="text-blue-500 text-2xl">🏢</span>
+                      <h4 className="font-semibold text-blue-800">Production Setup</h4>
+                    </div>
+                    <p className="text-sm text-blue-700 mb-3">
+                      Connect to your existing PowerDNS server for production use.
+                    </p>
+                    <div className="bg-blue-100 p-3 rounded-lg mb-3">
+                      <div className="text-xs font-medium text-blue-800 mb-2">You'll need:</div>
+                      <ul className="space-y-1 text-xs text-blue-700">
+                        <li>• PowerDNS API URL (e.g., https://dns.example.com:8081)</li>
+                        <li>• API key from your PowerDNS configuration</li>
+                        <li>• API enabled (api=yes in pdns.conf)</li>
+                        <li>• Webserver enabled (webserver=yes)</li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={() => setShowCreateForm(true)}
+                      className="w-full flex items-center justify-center space-x-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      <span>⚙️</span>
+                      <span>Configure Custom Server</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Create/Edit Form */}
               {showCreateForm && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
                   <div className="flex justify-between items-center mb-4">
-                    <h4 className="text-md font-semibold">
-                      {editingId ? 'Edit PowerDNS Server' : 'Add New PowerDNS Server'}
-                    </h4>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-500 text-lg">🌐</span>
+                      <h4 className="text-md font-semibold">
+                        {editingId ? 'Edit PowerDNS Server' : 'Add New PowerDNS Server'}
+                      </h4>
+                    </div>
                     <button
                       onClick={resetForm}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-gray-400 hover:text-gray-600 text-lg"
+                      title="Close form"
                     >
                       ✕
                     </button>
@@ -817,8 +977,9 @@ const Settings: React.FC = () => {
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Server Name *
+                        <label className="flex items-center space-x-1 text-sm font-medium text-gray-700 mb-1">
+                          <span>📝</span>
+                          <span>Server Name *</span>
                         </label>
                         <input
                           type="text"
@@ -831,8 +992,9 @@ const Settings: React.FC = () => {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          API URL *
+                        <label className="flex items-center space-x-1 text-sm font-medium text-gray-700 mb-1">
+                          <span>🌐</span>
+                          <span>API URL *</span>
                         </label>
                         <input
                           type="url"
@@ -842,11 +1004,15 @@ const Settings: React.FC = () => {
                           placeholder="http://powerdns:8081"
                           required
                         />
+                        <div className="mt-1 text-xs text-gray-500">
+                          Include the protocol (http:// or https://) and port
+                        </div>
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          API Key *
+                        <label className="flex items-center space-x-1 text-sm font-medium text-gray-700 mb-1">
+                          <span>🔑</span>
+                          <span>API Key *</span>
                         </label>
                         <input
                           type="password"
@@ -856,11 +1022,15 @@ const Settings: React.FC = () => {
                           placeholder="Your PowerDNS API key"
                           required
                         />
+                        <div className="mt-1 text-xs text-gray-500">
+                          From your PowerDNS configuration (api-key setting)
+                        </div>
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Timeout (seconds)
+                        <label className="flex items-center space-x-1 text-sm font-medium text-gray-700 mb-1">
+                          <span>⏱️</span>
+                          <span>Timeout (seconds)</span>
                         </label>
                         <input
                           type="number"
@@ -870,45 +1040,51 @@ const Settings: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                         />
+                        <div className="mt-1 text-xs text-gray-500">
+                          Connection timeout for API requests
+                        </div>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Description
+                      <label className="flex items-center space-x-1 text-sm font-medium text-gray-700 mb-1">
+                        <span>💬</span>
+                        <span>Description</span>
                       </label>
                       <textarea
                         value={formData.description}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                         rows={2}
-                        placeholder="Optional description"
+                        placeholder="Optional description for this server"
                       />
                     </div>
                     
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-3 sm:space-y-0">
+                      <label className="flex items-center space-x-2">
                         <input
                           type="checkbox"
                           checked={formData.is_default}
                           onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
-                          className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
+                        <span className="text-blue-500">⭐</span>
                         <span className="text-sm text-gray-700">Set as default server</span>
                       </label>
                       
-                      <label className="flex items-center">
+                      <label className="flex items-center space-x-2">
                         <input
                           type="checkbox"
                           checked={formData.verify_ssl}
                           onChange={(e) => setFormData({ ...formData, verify_ssl: e.target.checked })}
-                          className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
-                        <span className="text-sm text-gray-700">Verify SSL</span>
+                        <span className="text-green-500">🔒</span>
+                        <span className="text-sm text-gray-700">Verify SSL certificates</span>
                       </label>
                     </div>
                     
-                    <div className="flex justify-end space-x-3">
+                    <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                       <button
                         type="button"
                         onClick={resetForm}
@@ -918,9 +1094,10 @@ const Settings: React.FC = () => {
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                       >
-                        {editingId ? 'Update' : 'Create'}
+                        <span>{editingId ? '💾' : '🚀'}</span>
+                        <span>{editingId ? 'Update Server' : 'Create Server'}</span>
                       </button>
                     </div>
                   </form>
@@ -935,17 +1112,43 @@ const Settings: React.FC = () => {
                   </div>
                 ) : settings.length === 0 ? (
                   <div className="p-8 text-center">
-                    <div className="text-gray-400 text-4xl mb-4">⚙️</div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No PowerDNS servers configured</h3>
-                    <p className="text-gray-500 mb-4">
-                      Add your first PowerDNS server to start managing DNS zones.
+                    <div className="text-gray-400 text-6xl mb-4">⚙️</div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Ready to get started!</h3>
+                    <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                      Choose one of the options above to connect your first PowerDNS server. 
+                      We recommend starting with our test server to explore DNSMate's features.
                     </p>
-                    <button
-                      onClick={() => setShowCreateForm(true)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                    >
-                      Add PowerDNS Server
-                    </button>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                      <button
+                        onClick={() => {
+                          setFormData({
+                            name: 'Test PowerDNS',
+                            api_url: 'http://powerdns:8081',
+                            api_key: 'dnsmate-test-key',
+                            description: 'Built-in PowerDNS instance for testing',
+                            is_default: true,
+                            timeout: 30,
+                            verify_ssl: false,
+                          });
+                          setShowCreateForm(true);
+                        }}
+                        className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                      >
+                        <span>🚀</span>
+                        <span>Quick Test Setup</span>
+                      </button>
+                      
+                      <span className="text-gray-400 text-sm">or</span>
+                      
+                      <button
+                        onClick={() => setShowCreateForm(true)}
+                        className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                      >
+                        <span>⚙️</span>
+                        <span>Configure Custom Server</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -1047,15 +1250,230 @@ const Settings: React.FC = () => {
 
               {/* Help Section */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-800 mb-2">PowerDNS Configuration Help</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Ensure your PowerDNS instance has the API enabled (api=yes in pdns.conf)</li>
-                  <li>• Set a secure API key (api-key=your-secure-key in pdns.conf)</li>
-                  <li>• Enable the webserver (webserver=yes, webserver-port=8081)</li>
-                  <li>• Allow API access from DNSMate (webserver-allow-from=your-dnsmate-server)</li>
-                  <li>• You can have multiple PowerDNS servers, but only one can be the default</li>
-                  <li>• Use the test button to verify connectivity before saving</li>
-                </ul>
+                <div className="flex items-center space-x-2 mb-3">
+                  <span className="text-blue-500 text-lg">💡</span>
+                  <h4 className="font-semibold text-blue-800">PowerDNS Configuration Guide</h4>
+                </div>
+                
+                {/* Quick Start Section */}
+                <div className="bg-green-100 border border-green-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-green-600">🚀</span>
+                    <h5 className="font-medium text-green-800">Quick Start with Built-in PowerDNS</h5>
+                  </div>
+                  <div className="text-sm text-green-700 space-y-1">
+                    <div>• DNSMate includes a ready-to-use PowerDNS instance for testing</div>
+                    <div>• Start with: <code className="bg-green-200 px-1 rounded">docker compose --profile with-powerdns up -d</code></div>
+                    <div>• Use the test server settings above for instant setup</div>
+                    <div>• Perfect for learning and development</div>
+                  </div>
+                </div>
+
+                {/* Production Setup Section */}
+                <div className="space-y-2">
+                  <h5 className="font-medium text-blue-800 flex items-center space-x-1">
+                    <span>🏢</span>
+                    <span>Production PowerDNS Setup</span>
+                  </h5>
+                  <ul className="text-sm text-blue-700 space-y-2">
+                    <li className="flex items-start space-x-2">
+                      <span className="text-blue-500 mt-0.5">⚡</span>
+                      <span>Ensure your PowerDNS instance has the API enabled: <code className="bg-blue-100 px-1 rounded">api=yes</code> in pdns.conf</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-blue-500 mt-0.5">🔑</span>
+                      <span>Set a secure API key: <code className="bg-blue-100 px-1 rounded">api-key=your-secure-key</code> in pdns.conf</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-blue-500 mt-0.5">🌐</span>
+                      <span>Enable the webserver: <code className="bg-blue-100 px-1 rounded">webserver=yes, webserver-port=8081</code></span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-blue-500 mt-0.5">🔓</span>
+                      <span>Allow API access: <code className="bg-blue-100 px-1 rounded">webserver-allow-from=your-dnsmate-server</code></span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-blue-500 mt-0.5">⭐</span>
+                      <span>You can have multiple PowerDNS servers, but only one can be the default</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-blue-500 mt-0.5">🧪</span>
+                      <span>Always use the test button to verify connectivity before saving</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Versioning Tab - Admin only */}
+          {activeTab === 'versioning' && user?.role === 'admin' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Automatic Versioning</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Configure automatic version creation for zone and record changes.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-blue-500">ℹ️</span>
+                    <h4 className="font-medium text-blue-900">About Automatic Versioning</h4>
+                  </div>
+                  <p className="text-sm text-blue-800">
+                    When enabled, DNSMate automatically creates version snapshots whenever changes are made to zones or records. 
+                    This allows you to track changes and rollback if needed.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-900">Auto-versioning Options</h4>
+                    
+                    <div className="space-y-3">
+                      <label className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={versioningSettings.auto_version_enabled}
+                          onChange={(e) => handleVersioningSettingsUpdate({
+                            ...versioningSettings,
+                            auto_version_enabled: e.target.checked
+                          })}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">Enable Auto-versioning</span>
+                          <p className="text-xs text-gray-500">Master switch for automatic version creation</p>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={versioningSettings.auto_version_on_record_change}
+                          disabled={!versioningSettings.auto_version_enabled}
+                          onChange={(e) => handleVersioningSettingsUpdate({
+                            ...versioningSettings,
+                            auto_version_on_record_change: e.target.checked
+                          })}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">Version on Record Changes</span>
+                          <p className="text-xs text-gray-500">Create versions when DNS records are added, modified, or deleted</p>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={versioningSettings.auto_version_on_zone_change}
+                          disabled={!versioningSettings.auto_version_enabled}
+                          onChange={(e) => handleVersioningSettingsUpdate({
+                            ...versioningSettings,
+                            auto_version_on_zone_change: e.target.checked
+                          })}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">Version on Zone Changes</span>
+                          <p className="text-xs text-gray-500">Create versions when zone settings are modified</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-900">Retention Settings</h4>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Max Versions per Zone
+                        </label>
+                        <input
+                          type="number"
+                          min="10"
+                          max="500"
+                          value={versioningSettings.max_versions_per_zone}
+                          onChange={(e) => handleVersioningSettingsUpdate({
+                            ...versioningSettings,
+                            max_versions_per_zone: parseInt(e.target.value)
+                          })}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Older versions will be automatically deleted when this limit is reached
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Retention Period (Days)
+                        </label>
+                        <input
+                          type="number"
+                          min="7"
+                          max="365"
+                          value={versioningSettings.version_retention_days}
+                          onChange={(e) => handleVersioningSettingsUpdate({
+                            ...versioningSettings,
+                            version_retention_days: parseInt(e.target.value)
+                          })}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Versions older than this will be automatically deleted
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-2">Current Status</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Auto-versioning:</span>
+                      <span className={`ml-2 font-medium ${versioningSettings.auto_version_enabled ? 'text-green-600' : 'text-red-600'}`}>
+                        {versioningSettings.auto_version_enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Record changes:</span>
+                      <span className={`ml-2 font-medium ${versioningSettings.auto_version_on_record_change ? 'text-green-600' : 'text-gray-600'}`}>
+                        {versioningSettings.auto_version_on_record_change ? 'Tracked' : 'Not tracked'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Zone changes:</span>
+                      <span className={`ml-2 font-medium ${versioningSettings.auto_version_on_zone_change ? 'text-green-600' : 'text-gray-600'}`}>
+                        {versioningSettings.auto_version_on_zone_change ? 'Tracked' : 'Not tracked'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Max versions:</span>
+                      <span className="ml-2 font-medium text-gray-900">{versioningSettings.max_versions_per_zone}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-yellow-500 mt-0.5">⚠️</span>
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-medium mb-1">Important Notes:</p>
+                      <ul className="space-y-1 list-disc list-inside">
+                        <li>Automatic versioning applies to all zones and users</li>
+                        <li>Manual versions can still be created regardless of these settings</li>
+                        <li>Version cleanup runs daily and cannot be undone</li>
+                        <li>Large zones may create significant storage overhead</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

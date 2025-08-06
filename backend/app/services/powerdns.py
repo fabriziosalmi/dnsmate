@@ -113,10 +113,9 @@ class PowerDNSClient:
         if not zone_name.endswith('.'):
             zone_name = zone_name + '.'
         
-        # Default nameservers - these should be configured based on your setup
+        # Default nameservers - using the PowerDNS server itself
         default_nameservers = [
-            "ns1.example.com.",
-            "ns2.example.com."
+            "ns.local."
         ]
         
         zone_data = {
@@ -128,18 +127,9 @@ class PowerDNSClient:
                     "name": zone_name,
                     "type": "SOA",
                     "records": [{
-                        "content": f"ns1.example.com. admin.{zone_name} 1 3600 1800 604800 86400",
+                        "content": f"ns.local. admin.{zone_name} 1 3600 1800 604800 86400",
                         "disabled": False
                     }],
-                    "ttl": 86400
-                },
-                {
-                    "name": zone_name,
-                    "type": "NS",
-                    "records": [
-                        {"content": "ns1.example.com.", "disabled": False},
-                        {"content": "ns2.example.com.", "disabled": False}
-                    ],
                     "ttl": 86400
                 }
             ]

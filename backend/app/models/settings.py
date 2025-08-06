@@ -39,3 +39,20 @@ class PowerDNSSettings(Base):
     
     def __repr__(self):
         return f"<PowerDNSSettings(name='{self.name}', api_url='{self.api_url}')>"
+
+
+class VersioningSettings(Base):
+    """Zone versioning configuration settings"""
+    __tablename__ = "versioning_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    auto_version_enabled = Column(Boolean, default=True)
+    auto_version_on_record_change = Column(Boolean, default=True)
+    auto_version_on_zone_change = Column(Boolean, default=True)
+    max_versions_per_zone = Column(Integer, default=100)
+    version_retention_days = Column(Integer, default=90)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<VersioningSettings(auto_enabled={self.auto_version_enabled})>"

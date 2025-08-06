@@ -11,13 +11,15 @@ from cryptography.fernet import Fernet
 import os
 import httpx
 
-from app.models.settings import SystemSettings, PowerDNSSettings
+from app.models.settings import SystemSettings, PowerDNSSettings, VersioningSettings
 from app.schemas.settings import (
     SystemSettingCreate, 
     SystemSettingUpdate,
     PowerDNSSettingCreate,
     PowerDNSSettingUpdate,
-    PowerDNSTestResult
+    PowerDNSTestResult,
+    VersioningSettingsCreate,
+    VersioningSettingsUpdate
 )
 from app.core.config import settings
 
@@ -274,6 +276,49 @@ class PowerDNSSettingsService:
             }
 
 
+class VersioningSettingsService:
+    """Service for managing versioning configuration"""
+    
+    async def get_versioning_settings(self, db: AsyncSession) -> VersioningSettings:
+        """Get versioning settings (creates default if none exist)"""
+        result = await db.execute(select(VersioningSettings))
+        settings_obj = result.scalar_one_or_none()
+        
+        if not settings_obj:
+            # Create default settings
+            settings_obj = VersioningSettings(
+                auto_version_enabled=True,
+                auto_version_on_record_change=True,
+                auto_version_on_zone_change=True,
+                max_versions_per_zone=100,
+                version_retention_days=90
+            )
+            db.add(settings_obj)
+            await db.commit()
+            await db.refresh(settings_obj)
+        
+        return settings_obj
+    
+    async def update_versioning_settings(
+        self, 
+        db: AsyncSession, 
+        settings_data: VersioningSettingsUpdate
+    ) -> VersioningSettings:
+        """Update versioning settings"""
+        # Get or create settings
+        settings_obj = await self.get_versioning_settings(db)
+        
+        # Update fields
+        update_data = settings_data.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(settings_obj, field, value)
+        
+        await db.commit()
+        await db.refresh(settings_obj)
+        return settings_obj
+
+
 # Global instances
 settings_service = SettingsService()
 powerdns_settings_service = PowerDNSSettingsService()
+versioning_settings_service = VersioningSettingsService()

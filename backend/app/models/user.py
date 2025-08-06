@@ -9,9 +9,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 import enum
 
-if TYPE_CHECKING:
-    from app.models.audit import AuditLog
-
 
 class UserRole(enum.Enum):
     """User role enumeration"""

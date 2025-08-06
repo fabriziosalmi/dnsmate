@@ -18,10 +18,16 @@ cd dnsmate
 
 ### Step 2: Start DNSMate
 ```bash
-# For testing with a built-in PowerDNS instance
+# Option 1: For testing with a built-in PowerDNS instance (RECOMMENDED)
+docker compose --profile with-powerdns up -d
+
+# Option 2: For development with hot reload
 ./start-dev.sh
 
-# Wait for services to start (about 30 seconds)
+# Option 3: Production mode (requires external PowerDNS)
+docker compose up -d
+
+# Wait for services to start (about 30-60 seconds)
 ```
 
 ### Step 3: Create Your Admin User
@@ -38,15 +44,17 @@ cd dnsmate
 ### Step 5: Configure PowerDNS Server
 1. Login to DNSMate with your admin credentials
 2. Go to **Settings** > **PowerDNS** tab
-3. Click **"Add PowerDNS Server"**
-4. Fill in your PowerDNS details or use these test values:
-   ```
-   Server Name: Test PowerDNS
-   API URL: http://powerdns:8081
-   API Key: powerdns-secret-key
-   ```
+3. **Option A - Quick Test Setup (Recommended):**
+   - Click **"Use Test Server"** in the green card
+   - This uses the built-in PowerDNS instance
+   - Perfect for testing and learning DNSMate
+4. **Option B - Custom Server:**
+   - Click **"Add PowerDNS Server"**
+   - Fill in your PowerDNS server details
 5. Click **"Test Connection"** to verify
 6. Click **"Create"** to save
+
+**🎉 You're ready to go!** Start creating DNS zones and records.
 
 ### Step 6: Start Managing DNS!
 1. Go to **Zones** to create your first DNS zone

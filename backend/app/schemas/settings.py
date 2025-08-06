@@ -104,3 +104,32 @@ class PowerDNSTestResult(BaseModel):
     response_time_ms: Optional[float] = None
     server_version: Optional[str] = None
     zones_count: Optional[int] = None
+
+
+class VersioningSettingsBase(BaseModel):
+    auto_version_enabled: bool = True
+    auto_version_on_record_change: bool = True
+    auto_version_on_zone_change: bool = True
+    max_versions_per_zone: int = Field(default=100, ge=10, le=500)
+    version_retention_days: int = Field(default=90, ge=7, le=365)
+
+
+class VersioningSettingsCreate(VersioningSettingsBase):
+    pass
+
+
+class VersioningSettingsUpdate(BaseModel):
+    auto_version_enabled: Optional[bool] = None
+    auto_version_on_record_change: Optional[bool] = None
+    auto_version_on_zone_change: Optional[bool] = None
+    max_versions_per_zone: Optional[int] = Field(None, ge=10, le=500)
+    version_retention_days: Optional[int] = Field(None, ge=7, le=365)
+
+
+class VersioningSettings(VersioningSettingsBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True

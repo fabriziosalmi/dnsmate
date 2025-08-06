@@ -64,8 +64,14 @@ export const ZoneVersioning: React.FC<ZoneVersioningProps> = ({
     try {
       const data = await versioningAPI.getZoneVersions(zoneName);
       setVersions(data);
-    } catch (error) {
-      toast.error('Failed to fetch zone versions');
+    } catch (error: any) {
+      // Only show error if it's not a 404 (no versions found)
+      if (error.response?.status !== 404) {
+        toast.error('Failed to fetch zone versions');
+      } else {
+        // No versions exist yet - this is normal
+        setVersions([]);
+      }
     } finally {
       setLoading(false);
     }
