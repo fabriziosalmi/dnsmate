@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from typing import Union
 from app.core.config import settings
-from app.api.routes import auth, zones, records, users, tokens, versioning, security, audit
+from app.api.routes import auth, zones, records, users, tokens, versioning, security
+from app.api.routes import settings as settings_routes
 from app.core.database import create_db_and_tables
 from app.core.auth import current_active_user
 from app.services.token_auth import get_current_api_user
@@ -43,7 +44,7 @@ async def get_current_user(
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(security.router, tags=["security"])  # Security routes
-app.include_router(audit.router, tags=["audit"])  # Audit routes
+app.include_router(settings_routes.router, prefix="/api/settings", tags=["settings"])  # Settings routes
 app.include_router(zones.router, prefix="/api/zones", tags=["zones"])
 app.include_router(records.router, prefix="/api/records", tags=["records"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])

@@ -52,38 +52,26 @@ const Navigation: React.FC = () => {
                 Backup
               </Link>
               <Link
-                to="/security"
+                to="/settings"
                 className={`${
-                  isActive('/security') 
+                  isActive('/settings') 
                     ? 'border-blue-500 text-gray-900' 
                     : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                 } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
               >
-                Security
+                Settings
               </Link>
               {user?.role === 'admin' && (
-                <>
-                  <Link
-                    to="/users"
-                    className={`${
-                      isActive('/users') 
-                        ? 'border-blue-500 text-gray-900' 
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                  >
-                    Users
-                  </Link>
-                  <Link
-                    to="/audit"
-                    className={`${
-                      isActive('/audit') 
-                        ? 'border-blue-500 text-gray-900' 
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                  >
-                    Audit
-                  </Link>
-                </>
+                <Link
+                  to="/users"
+                  className={`${
+                    isActive('/users') 
+                      ? 'border-blue-500 text-gray-900' 
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                >
+                  Users
+                </Link>
               )}
             </div>
           </div>

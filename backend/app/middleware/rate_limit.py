@@ -7,10 +7,17 @@ from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 import asyncio
-import redis
 import json
 from datetime import datetime, timedelta
 import logging
+
+# Import redis with error handling
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    redis = None
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +76,8 @@ class RedisRateLimiter:
     """Redis-based rate limiter for production"""
     
     def __init__(self, redis_url: str):
+        if not REDIS_AVAILABLE or redis is None:
+            raise RuntimeError("Redis is not available but RedisRateLimiter was instantiated")
         self.redis = redis.from_url(redis_url, decode_responses=True)
     
     async def is_allowed(self, key: str, limit: int, window: int) -> Tuple[bool, Dict[str, int]]:
@@ -125,7 +134,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app, redis_url: Optional[str] = None):
         super().__init__(app)
-        self.limiter = RedisRateLimiter(redis_url) if redis_url else InMemoryRateLimiter()
+        # Only use Redis if it's available and redis_url is provided
+        if redis_url and REDIS_AVAILABLE:
+            self.limiter = RedisRateLimiter(redis_url)
+        else:
+            self.limiter = InMemoryRateLimiter()
+            if redis_url and not REDIS_AVAILABLE:
+                logger.warning("Redis URL provided but redis package not available, falling back to in-memory rate limiting")
         
         # Rate limit configurations
         self.rate_limits = {

@@ -27,6 +27,9 @@ qrcode[pil]==8.2
 # HTTP client
 httpx==0.25.2
 
+# Redis for rate limiting and caching
+redis==5.0.1
+
 # Form data handling
 python-multipart==0.0.7
 

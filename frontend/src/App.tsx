@@ -2,7 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import NotificationContainer from './components/NotificationContainer';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import ZoneList from './components/ZoneList';
@@ -10,8 +12,7 @@ import ZoneDetail from './components/ZoneDetail';
 import UserManagement from './components/UserManagement';
 import { TokenManagement } from './components/TokenManagement';
 import { BackupManager } from './components/BackupManager';
-import Security from './components/Security';
-import Audit from './components/Audit';
+import Settings from './components/Settings';
 import Navigation from './components/Navigation';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -64,6 +65,7 @@ const AppContent: React.FC = () => {
 
   return (
     <Router>
+      <NotificationContainer />
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/zones" />} />
         <Route path="/" element={<Navigate to="/zones" />} />
@@ -108,20 +110,10 @@ const AppContent: React.FC = () => {
           }
         />
         <Route
-          path="/security"
+          path="/settings"
           element={
             <ProtectedRoute>
-              <Security />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/audit"
-          element={
-            <ProtectedRoute>
-              <AdminRoute>
-                <Audit />
-              </AdminRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />
@@ -145,7 +137,9 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppContent />
+        <NotificationProvider>
+          <AppContent />
+        </NotificationProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

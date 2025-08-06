@@ -1,9 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { usePowerDNSStatus } from '../hooks/usePowerDNSStatus';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  
+  // Check PowerDNS status and notify admin users if not configured
+  usePowerDNSStatus();
 
   return (
     <div className="space-y-6">

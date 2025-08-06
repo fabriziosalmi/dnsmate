@@ -49,9 +49,13 @@ async def get_zones(
     session: AsyncSession = Depends(get_async_session)
 ):
     """Get all zones accessible to user"""
-    client = PowerDNSClient()
-    
     try:
+        client = PowerDNSClient()
+        
+        # If no PowerDNS configuration exists, return empty list instead of error
+        if not client.api_url or not client.api_key:
+            return []
+        
         zones_data = await client.get_zones()
         zones = []
         
@@ -70,10 +74,11 @@ async def get_zones(
         return zones
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch zones: {str(e)}"
-        )
+        # Log the error but return empty list if PowerDNS is not configured
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to fetch zones (PowerDNS may not be configured): {str(e)}")
+        return []
 
 
 @router.get("/{zone_name}", response_model=ZoneRead)

@@ -24,7 +24,7 @@ interface ZonePermission {
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  // const [selectedUser, setSelectedUser] = useState<User | null>(null); // Reserved for future user selection features
   const [showPermissions, setShowPermissions] = useState<number | null>(null);
   const [permissions, setPermissions] = useState<{ [key: number]: ZonePermission[] }>({});
   const [editingUser, setEditingUser] = useState<User | null>(null);

@@ -4,7 +4,10 @@ import httpx
 import logging
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
+from app.services.settings import powerdns_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,9 @@ class PowerDNSClient:
     
     async def _request(self, method: str, endpoint: str, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Make HTTP request to PowerDNS API"""
+        if not self.api_url or not self.api_key:
+            raise Exception("PowerDNS API URL or API key not configured")
+            
         url = f"{self.api_url}/api/v1/{endpoint}"
         
         async with httpx.AsyncClient() as client:
