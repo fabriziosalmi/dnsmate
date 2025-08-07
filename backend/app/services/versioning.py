@@ -4,6 +4,7 @@ import json
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 
 from app.models.user import User, ZoneVersion
@@ -66,6 +67,7 @@ class ZoneVersioningService:
         """Get versions for a zone"""
         result = await self.session.execute(
             select(ZoneVersion)
+            .options(selectinload(ZoneVersion.user))
             .where(ZoneVersion.zone_name == zone_name)
             .order_by(desc(ZoneVersion.version_number))
             .limit(limit)
@@ -76,7 +78,20 @@ class ZoneVersioningService:
         """Get specific version details"""
         result = await self.session.execute(
             select(ZoneVersion)
+            .options(selectinload(ZoneVersion.user))
             .where(ZoneVersion.id == version_id)
+        )
+        return result.scalar_one_or_none()
+    
+    async def get_zone_version(self, zone_name: str, version_id: int) -> Optional[ZoneVersion]:
+        """Get specific version for a zone (with zone name validation)"""
+        result = await self.session.execute(
+            select(ZoneVersion)
+            .options(selectinload(ZoneVersion.user))
+            .where(
+                ZoneVersion.id == version_id,
+                ZoneVersion.zone_name == zone_name
+            )
         )
         return result.scalar_one_or_none()
     
@@ -229,40 +244,35 @@ class ZoneVersioningService:
             # Update existing records
             for record in to_update:
                 try:
-                    await self.powerdns.update_record(
-                        zone_name,
-                        record['name'],
-                        record['type'],
-                        record['content'],
-                        record.get('ttl', 3600)
+                    from app.services.powerdns import PowerDNSRecord
+                    powerdns_record = PowerDNSRecord(
+                        name=record['name'],
+                        type=record['type'],
+                        content=record['content'],
+                        ttl=record.get('ttl', 3600),
+                        disabled=record.get('disabled', False)
                     )
+                    await self.powerdns.update_record(zone_name, powerdns_record)
                 except Exception as e:
                     print(f"Warning: Failed to update record {record['name']}:{record['type']}: {e}")
             
             # Create new records
             for record in to_create:
                 try:
-                    await self.powerdns.create_record(
-                        zone_name,
-                        record['name'],
-                        record['type'],
-                        record['content'],
-                        record.get('ttl', 3600)
+                    from app.services.powerdns import PowerDNSRecord
+                    powerdns_record = PowerDNSRecord(
+                        name=record['name'],
+                        type=record['type'],
+                        content=record['content'],
+                        ttl=record.get('ttl', 3600),
+                        disabled=record.get('disabled', False)
                     )
+                    await self.powerdns.create_record(zone_name, powerdns_record)
                 except Exception as e:
                     print(f"Warning: Failed to create record {record['name']}:{record['type']}: {e}")
             
-            # Update zone configuration if needed
-            current_zone = await self.powerdns.get_zone(zone_name)
-            zone_updates = {}
-            
-            # Check for zone-level changes
-            for key in ['kind', 'serial', 'notified_serial']:
-                if key in zone_data and zone_data[key] != current_zone.get(key):
-                    zone_updates[key] = zone_data[key]
-            
-            if zone_updates:
-                await self.powerdns.update_zone(zone_name, zone_updates)
+            # Note: Zone-level configuration updates are not supported by the current PowerDNS client
+            # Zone metadata like serial numbers are typically managed automatically by PowerDNS
                 
         except Exception as e:
             raise ValueError(f"Failed to apply zone configuration: {str(e)}")
@@ -310,3 +320,46 @@ class ZoneVersioningService:
                 .where(ZoneVersion.id.in_(old_version_ids))
             )
             await self.session.commit()
+    
+    async def auto_create_version_if_enabled(
+        self,
+        zone_name: str,
+        user: User,
+        trigger_type: str = "record_change",
+        description: Optional[str] = None
+    ) -> Optional[ZoneVersion]:
+        """Automatically create a version if auto-versioning is enabled"""
+        from app.services.settings import versioning_settings_service
+        
+        try:
+            # Get versioning settings
+            settings = await versioning_settings_service.get_versioning_settings(self.session)
+            
+            # Check if auto-versioning is enabled
+            if not settings.auto_version_enabled:
+                return None
+            
+            # Check if this trigger type should create a version
+            if trigger_type == "record_change" and not settings.auto_version_on_record_change:
+                return None
+            elif trigger_type == "zone_change" and not settings.auto_version_on_zone_change:
+                return None
+            
+            # Generate description if not provided
+            if not description:
+                description = f"Auto-version created on {trigger_type}"
+            
+            # Create the version
+            return await self.create_version(
+                zone_name=zone_name,
+                user=user,
+                description=description,
+                changes_summary=f"Automatically created due to {trigger_type.replace('_', ' ')}"
+            )
+            
+        except Exception as e:
+            # Log the error but don't fail the main operation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to auto-create version for zone {zone_name}: {e}")
+            return None

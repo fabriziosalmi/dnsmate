@@ -9,7 +9,7 @@ interface ZoneVersion {
   description?: string;
   changes_summary?: string;
   created_at: string;
-  user: {
+  user?: {
     id: number;
     email: string;
     first_name?: string;
@@ -111,6 +111,33 @@ export const ZoneVersioning: React.FC<ZoneVersioningProps> = ({
     }
   };
 
+  const handleDownloadVersion = async (versionId: number, versionNumber: number) => {
+    try {
+      const blob = await versioningAPI.downloadVersion(zoneName, versionId);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.download = `${zoneName}_v${versionNumber}_${timestamp}.zone`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`Version ${versionNumber} downloaded successfully`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to download version');
+    }
+  };
+
   const handleCompareVersions = async () => {
     if (selectedVersions.length !== 2) {
       toast.error('Please select exactly 2 versions to compare');
@@ -140,11 +167,14 @@ export const ZoneVersioning: React.FC<ZoneVersioningProps> = ({
     });
   };
 
-  const formatUserName = (user: ZoneVersion['user']) => {
+  const formatUserName = (user: ZoneVersion['user'] | undefined | null) => {
+    if (!user) {
+      return 'Unknown User';
+    }
     if (user.first_name || user.last_name) {
       return `${user.first_name || ''} ${user.last_name || ''}`.trim();
     }
-    return user.email;
+    return user.email || 'Unknown User';
   };
 
   if (loading) {
@@ -306,12 +336,22 @@ export const ZoneVersioning: React.FC<ZoneVersioningProps> = ({
                       {new Date(version.created_at).toLocaleDateString()} {new Date(version.created_at).toLocaleTimeString()}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleRollback(version.id, version.version_number)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Rollback
-                      </button>
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handleDownloadVersion(version.id, version.version_number)}
+                          className="text-green-600 hover:text-green-900 px-2 py-1 border border-green-300 rounded hover:bg-green-50 transition-colors"
+                          title="Download this version"
+                        >
+                          Download
+                        </button>
+                        <button
+                          onClick={() => handleRollback(version.id, version.version_number)}
+                          className="text-blue-600 hover:text-blue-900 px-2 py-1 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                          title="Rollback to this version"
+                        >
+                          Rollback
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

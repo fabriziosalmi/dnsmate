@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List
 from datetime import datetime
 
+from app.schemas.user import UserRead
+
 
 class ZoneCreate(BaseModel):
     """Zone creation schema"""
@@ -165,6 +167,7 @@ class ZoneVersionRead(BaseModel):
     zone_name: str
     version_number: int
     user_id: int
+    user: UserRead
     description: Optional[str] = None
     changes_summary: Optional[str] = None
     created_at: datetime

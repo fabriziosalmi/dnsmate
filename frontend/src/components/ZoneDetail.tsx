@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { recordsAPI, zonesAPI, Zone } from '../services/api';
 import { toast } from 'react-hot-toast';
+import { getErrorMessage } from '../utils/errorUtils';
+import { ZoneVersioning } from './ZoneVersioning';
 
 interface Record {
   id?: number;
@@ -19,7 +21,7 @@ const ZoneDetail: React.FC = () => {
   const [zone, setZone] = useState<Zone | null>(null);
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'records' | 'discovery' | 'security'>('records');
+  const [activeTab, setActiveTab] = useState<'records' | 'versions' | 'discovery' | 'security'>('records');
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [newRecord, setNewRecord] = useState({
     name: '',
@@ -67,7 +69,7 @@ const ZoneDetail: React.FC = () => {
       await fetchZoneDetails();
       toast.success('Record added successfully');
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to add record');
+      toast.error(getErrorMessage(error, 'Failed to add record'));
     }
   };
 
@@ -83,7 +85,7 @@ const ZoneDetail: React.FC = () => {
       await fetchZoneDetails();
       toast.success('Record deleted successfully');
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to delete record');
+      toast.error(getErrorMessage(error, 'Failed to delete record'));
     }
   };
 
@@ -135,6 +137,16 @@ const ZoneDetail: React.FC = () => {
               }`}
             >
               DNS Records ({records.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('versions')}
+              className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                activeTab === 'versions'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📚 Versions
             </button>
             <button
               onClick={() => setActiveTab('discovery')}
@@ -326,6 +338,13 @@ const ZoneDetail: React.FC = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === 'versions' && zoneName && (
+            <ZoneVersioning 
+              zoneName={zoneName} 
+              onVersionChange={fetchZoneDetails}
+            />
           )}
 
           {activeTab === 'discovery' && (

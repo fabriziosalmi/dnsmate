@@ -1,77 +1,96 @@
-"""Application configuration"""
+"""Enhanced application configuration with comprehensive settings management"""
 
 from pydantic_settings import BaseSettings
-from typing import Optional
+from pydantic import Field, validator, model_validator
+from typing import Optional, List, Dict, Any, Union
 import os
+import secrets
+from pathlib import Path
 
 
 class Settings(BaseSettings):
-    """Application settings"""
+    """Main application settings"""
+    
+    # Environment and app info
+    environment: str = Field(default="development", description="Environment (development, staging, production)")
+    app_name: str = Field(default="DNSMate", description="Application name")
+    version: str = Field(default="1.1.0", description="Application version")
+    debug: bool = Field(default=True, description="Debug mode")
+    
+    # Server configuration
+    host: str = Field(default="0.0.0.0", description="Host to bind to")
+    port: int = Field(default=8000, description="Port to bind to")
+    reload: bool = Field(default=True, description="Auto-reload on code changes")
     
     # Database
-    database_url: str = "sqlite:///./dnsmate.db"
+    database_url: str = Field(default="sqlite:///./dnsmate.db", description="Database connection URL")
+    
+    # CORS configuration
+    cors_origins: Union[str, List[str]] = Field(default="*", description="CORS allowed origins")
+    
+    # PowerDNS configuration
+    powerdns_api_url: str = Field(default="http://localhost:8081", description="PowerDNS API URL")
+    powerdns_api_key: str = Field(default="changeme", description="PowerDNS API key")
+    powerdns_timeout: int = Field(default=30, description="PowerDNS request timeout")
+    powerdns_verify_ssl: bool = Field(default=True, description="Verify PowerDNS SSL certificates")
+    
+    # Multi-server support
+    multi_server_mode: bool = Field(default=False, description="Enable multi-server mode")
     
     # Security
-    secret_key: str = "your-secret-key-change-this-in-production"
-    jwt_secret: str = "your-jwt-secret-key"
-    reset_password_token_secret: str = "your-reset-password-secret"
-    verification_token_secret: str = "your-verification-secret"
-    
-    # PowerDNS API
-    powerdns_api_url: str = "http://localhost:8081"
-    powerdns_api_key: str = "your-powerdns-api-key"
-    
-    # Environment
-    environment: str = "production"
-    
-    # Email settings
-    email_enabled: bool = False
-    smtp_server: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_username: str = ""
-    smtp_password: str = ""
-    from_email: str = "noreply@dnsmate.com"
-    from_name: str = "DNSMate"
-    frontend_url: str = "http://localhost:3000"
-    
-    # Rate limiting
-    redis_url: Optional[str] = None
-    rate_limit_enabled: bool = True
+    secret_key: str = Field(default_factory=lambda: secrets.token_urlsafe(32), description="Secret key")
+    jwt_secret: str = Field(default_factory=lambda: secrets.token_urlsafe(32), description="JWT secret key")
+    reset_password_token_secret: str = Field(default_factory=lambda: secrets.token_urlsafe(32), description="Reset password token secret")
+    verification_token_secret: str = Field(default_factory=lambda: secrets.token_urlsafe(32), description="Verification token secret")
+    access_token_expire_minutes: int = Field(default=30, description="Access token expiration")
     
     # Logging
-    log_level: str = "INFO"
-    log_format: str = "json"  # json or text
-    log_file: Optional[str] = None
+    log_level: str = Field(default="INFO", description="Log level")
+    log_format: str = Field(default="text", description="Log format")
+    log_file: Optional[str] = Field(default=None, description="Log file path")
     
-    # CORS - can be overridden by CORS_ORIGINS environment variable
+    # Monitoring
+    slow_query_threshold_ms: float = Field(default=1000.0, description="Slow query threshold")
+    
+    # Email
+    email_enabled: bool = Field(default=False, description="Enable email")
+    
+    # Rate limiting
+    rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting")
+    
+    @validator('cors_origins', pre=True)
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from string or list"""
+        if isinstance(v, str):
+            if v == "*":
+                return ["*"]
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+    
+    @validator('environment')
+    def validate_environment(cls, v):
+        valid_envs = ["development", "staging", "production"]
+        if v not in valid_envs:
+            raise ValueError(f"Environment must be one of: {valid_envs}")
+        return v
+    
+    # Property accessors for backward compatibility
     @property
-    def backend_cors_origins(self) -> list[str]:
-        """Get CORS origins from environment or use defaults"""
-        cors_origins = os.getenv("CORS_ORIGINS")
-        if cors_origins:
-            return [origin.strip() for origin in cors_origins.split(",")]
-        
-        # Default origins based on environment
-        default_origins = [
-            "http://localhost:3000",
-            "http://localhost:8021",
-            "http://localhost",
-            "http://127.0.0.1:8021",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1"
-        ]
-        
-        # In development, allow all origins for easier testing
-        if self.environment == "development":
-            default_origins.extend([
-                "http://localhost:8000",
-                "http://127.0.0.1:8000"
-            ])
-        
-        return default_origins
+    def backend_cors_origins(self) -> List[str]:
+        """Get CORS origins as list"""
+        cors_origins_env = os.getenv("CORS_ORIGINS")
+        if cors_origins_env:
+            return [origin.strip() for origin in cors_origins_env.split(",")]
+        if isinstance(self.cors_origins, str):
+            if self.cors_origins == "*":
+                return ["*"]
+            return [origin.strip() for origin in self.cors_origins.split(",")]
+        return self.cors_origins
     
     class Config:
         env_file = ".env"
+        case_sensitive = False
 
 
+# Global settings instance
 settings = Settings()

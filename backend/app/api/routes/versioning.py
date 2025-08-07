@@ -163,6 +163,49 @@ async def compare_versions(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/{zone_name}/versions/{version_id}/download")
+async def download_version_backup(
+    zone_name: str,
+    version_id: int,
+    current_user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """Download a specific version as BIND format backup"""
+    if not await check_zone_permission(zone_name, current_user, "read", session):
+        raise HTTPException(status_code=403, detail="Access denied to this zone")
+    
+    versioning_service = ZoneVersioningService(session)
+    backup_service = BindBackupService()
+    
+    try:
+        # Get the version data
+        version = await versioning_service.get_zone_version(zone_name, version_id)
+        if not version:
+            raise HTTPException(status_code=404, detail="Version not found")
+        
+        # Generate backup content for this specific version
+        backup_content = await backup_service.generate_version_backup(
+            session=session,
+            zone_name=zone_name, 
+            version_id=version_id
+        )
+        
+        # Create filename with version info
+        timestamp = version.created_at.strftime("%Y%m%d_%H%M%S")
+        filename = f"{zone_name}_v{version.version_number}_{timestamp}.zone"
+        
+        return StreamingResponse(
+            io.BytesIO(backup_content.encode()),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error downloading version backup: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate version backup")
+
+
 @router.get("/{zone_name}/backup")
 async def download_zone_backup(
     zone_name: str,

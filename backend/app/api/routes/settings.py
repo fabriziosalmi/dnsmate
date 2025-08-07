@@ -111,6 +111,7 @@ async def get_powerdns_settings(
             "is_active": setting.is_active,
             "timeout": setting.timeout,
             "verify_ssl": setting.verify_ssl,
+            "multi_server_mode": setting.multi_server_mode,
             "created_at": setting.created_at,
             "updated_at": setting.updated_at,
             "health_status": "unknown",

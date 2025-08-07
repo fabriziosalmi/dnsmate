@@ -99,11 +99,11 @@ app.add_middleware(
     expose_headers=["X-Request-ID", "X-Response-Time"]
 )
 
-# Enhanced monitoring middleware
-app.add_middleware(
-    EnhancedMonitoringMiddleware,
-    enable_detailed_logging=(settings.environment == "development")
-)
+# Enhanced monitoring middleware (temporarily disabled for debugging)
+# app.add_middleware(
+#     EnhancedMonitoringMiddleware,
+#     enable_detailed_logging=(settings.environment == "development")
+# )
 
 # Rate limiting middleware (enabled in production)
 if settings.environment == "production":

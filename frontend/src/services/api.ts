@@ -427,7 +427,7 @@ export const tokensAPI = {
 // Versioning API
 export const versioningAPI = {
   getZoneVersions: async (zoneName: string) => {
-    const response = await api.get(`/api/versioning/${zoneName}/versions`);
+    const response = await api.get(`/api/zones/${zoneName}/versions`);
     return response.data;
   },
 
@@ -435,12 +435,12 @@ export const versioningAPI = {
     description?: string;
     changes_summary?: string;
   }) => {
-    const response = await api.post(`/api/versioning/${zoneName}/versions`, data);
+    const response = await api.post(`/api/zones/${zoneName}/versions`, data);
     return response.data;
   },
 
   rollbackToVersion: async (zoneName: string, versionId: number, description?: string) => {
-    const response = await api.post(`/api/versioning/${zoneName}/rollback/${versionId}`, {
+    const response = await api.post(`/api/zones/${zoneName}/versions/${versionId}/rollback`, {
       description,
     });
     return response.data;
@@ -448,8 +448,15 @@ export const versioningAPI = {
 
   compareVersions: async (zoneName: string, version1Id: number, version2Id: number) => {
     const response = await api.get(
-      `/api/versioning/${zoneName}/compare/${version1Id}/${version2Id}`
+      `/api/zones/${zoneName}/versions/compare/${version1Id}/${version2Id}`
     );
+    return response.data;
+  },
+
+  downloadVersion: async (zoneName: string, versionId: number): Promise<Blob> => {
+    const response = await api.get(`/api/zones/${zoneName}/versions/${versionId}/download`, {
+      responseType: 'blob',
+    });
     return response.data;
   },
 };
@@ -469,143 +476,6 @@ export const backupAPI = {
     });
     return response.data;
   },
-};
-
-// Legacy API functions (keeping for backward compatibility)
-export const authAPI = {
-  login: async (email: string, password: string) => {
-    return enhancedAPI.post('/auth/login', { username: email, password });
-  },
-  
-  logout: async () => {
-    return enhancedAPI.post('/auth/logout');
-  },
-  
-  register: async (userData: any) => {
-    return enhancedAPI.post('/auth/register', userData);
-  },
-  
-  getProfile: async () => {
-    return enhancedAPI.get('/auth/me', { useCache: true, cacheTTL: 60000 }); // Cache for 1 minute
-  }
-};
-
-export const zonesAPI = {
-  getZones: async () => {
-    return enhancedAPI.get('/zones', { useCache: true, cacheTTL: 30000 }); // Cache for 30 seconds
-  },
-  
-  getZone: async (zoneId: string) => {
-    return enhancedAPI.get(`/zones/${zoneId}`, { useCache: true, cacheTTL: 30000 });
-  },
-  
-  createZone: async (zoneData: any) => {
-    return enhancedAPI.post('/zones', zoneData);
-  },
-  
-  updateZone: async (zoneId: string, zoneData: any) => {
-    return enhancedAPI.put(`/zones/${zoneId}`, zoneData);
-  },
-  
-  deleteZone: async (zoneId: string) => {
-    return enhancedAPI.delete(`/zones/${zoneId}`);
-  }
-};
-
-export const recordsAPI = {
-  getRecords: async (zoneId: string) => {
-    return enhancedAPI.get(`/zones/${zoneId}/records`, { useCache: true, cacheTTL: 15000 }); // Cache for 15 seconds
-  },
-  
-  createRecord: async (zoneId: string, recordData: any) => {
-    return enhancedAPI.post(`/zones/${zoneId}/records`, recordData);
-  },
-  
-  updateRecord: async (zoneId: string, recordId: string, recordData: any) => {
-    return enhancedAPI.put(`/zones/${zoneId}/records/${recordId}`, recordData);
-  },
-  
-  deleteRecord: async (zoneId: string, recordId: string) => {
-    return enhancedAPI.delete(`/zones/${zoneId}/records/${recordId}`);
-  }
-};
-
-export const usersAPI = {
-  getUsers: async () => {
-    return enhancedAPI.get('/users', { useCache: true, cacheTTL: 60000 }); // Cache for 1 minute
-  },
-  
-  createUser: async (userData: any) => {
-    return enhancedAPI.post('/users', userData);
-  },
-  
-  updateUser: async (userId: string, userData: any) => {
-    return enhancedAPI.put(`/users/${userId}`, userData);
-  },
-  
-  deleteUser: async (userId: string) => {
-    return enhancedAPI.delete(`/users/${userId}`);
-  }
-};
-
-export const settingsAPI = {
-  getPowerDNSServers: async () => {
-    return enhancedAPI.get('/settings/powerdns-servers', { useCache: true, cacheTTL: 30000 });
-  },
-  
-  createPowerDNSServer: async (serverData: any) => {
-    return enhancedAPI.post('/settings/powerdns-servers', serverData);
-  },
-  
-  updatePowerDNSServer: async (serverId: string, serverData: any) => {
-    return enhancedAPI.put(`/settings/powerdns-servers/${serverId}`, serverData);
-  },
-  
-  deletePowerDNSServer: async (serverId: string) => {
-    return enhancedAPI.delete(`/settings/powerdns-servers/${serverId}`);
-  },
-  
-  testPowerDNSServer: async (serverId: string) => {
-    return enhancedAPI.post(`/settings/powerdns-servers/${serverId}/test`);
-  }
-};
-
-export const monitoringAPI = {
-  getHealth: async () => {
-    return enhancedAPI.get('/monitoring/health');
-  },
-  
-  getMetrics: async () => {
-    return enhancedAPI.get('/monitoring/metrics');
-  },
-  
-  getPowerDNSStatus: async () => {
-    return enhancedAPI.get('/monitoring/powerdns-status');
-  }
-};
-
-export const auditAPI = {
-  getAuditLogs: async (params?: any) => {
-    const queryParams = new URLSearchParams(params).toString();
-    return enhancedAPI.get(`/audit-logs${queryParams ? `?${queryParams}` : ''}`, { 
-      useCache: true, 
-      cacheTTL: 15000 
-    });
-  }
-};
-
-export const tokenAPI = {
-  getTokens: async () => {
-    return enhancedAPI.get('/tokens', { useCache: true, cacheTTL: 30000 });
-  },
-  
-  createToken: async (tokenData: any) => {
-    return enhancedAPI.post('/tokens', tokenData);
-  },
-  
-  revokeToken: async (tokenId: string) => {
-    return enhancedAPI.delete(`/tokens/${tokenId}`);
-  }
 };
 
 // Export enhanced API and cache utilities

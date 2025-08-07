@@ -112,6 +112,22 @@ async def create_record(
         
         # Check results and provide appropriate response
         if result.is_complete_success:
+            # Auto-create version if enabled
+            try:
+                from app.services.versioning import ZoneVersioningService
+                versioning_service = ZoneVersioningService(session)
+                await versioning_service.auto_create_version_if_enabled(
+                    zone_name=zone_name,
+                    user=current_user,
+                    trigger_type="record_change",
+                    description=f"Added {record.type} record: {record.name}"
+                )
+            except Exception as e:
+                # Log but don't fail the request
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to auto-create version: {e}")
+            
             return RecordRead(
                 zone_name=zone_name,
                 name=record.name,
@@ -237,6 +253,22 @@ async def delete_record(
         
         # Check results and provide appropriate response
         if result.is_complete_success:
+            # Auto-create version if enabled
+            try:
+                from app.services.versioning import ZoneVersioningService
+                versioning_service = ZoneVersioningService(session)
+                await versioning_service.auto_create_version_if_enabled(
+                    zone_name=zone_name,
+                    user=current_user,
+                    trigger_type="record_change",
+                    description=f"Deleted {record_type} record: {record_name}"
+                )
+            except Exception as e:
+                # Log but don't fail the request
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to auto-create version: {e}")
+            
             return {"message": f"Record {record_name} ({record_type}) deleted successfully from all servers"}
         elif result.is_partial_success:
             # Some servers succeeded, some failed

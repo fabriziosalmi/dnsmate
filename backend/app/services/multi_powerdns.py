@@ -367,14 +367,20 @@ class MultiPowerDNSService:
             result = MultiPowerDNSResult()
             try:
                 client = PowerDNSClient(api_url=default_server.api_url, api_key=default_server.api_key)
-                operation_result = await client.add_record(zone_name, record_data)
+                # Convert dict to PowerDNSRecord object
+                from app.services.powerdns import PowerDNSRecord
+                record = PowerDNSRecord(**record_data)
+                operation_result = await client.create_record(zone_name, record)
                 result.add_result(default_server.name, default_server.id, True, operation_result)
             except Exception as e:
                 result.add_result(default_server.name, default_server.id, False, error=str(e))
             return result
         
         async def add_record_operation(client: PowerDNSClient, zone: str, data: Dict[str, Any]):
-            return await client.add_record(zone, data)
+            # Convert dict to PowerDNSRecord object
+            from app.services.powerdns import PowerDNSRecord
+            record = PowerDNSRecord(**data)
+            return await client.create_record(zone, record)
         
         return await self.execute_on_all_servers(
             db, 
