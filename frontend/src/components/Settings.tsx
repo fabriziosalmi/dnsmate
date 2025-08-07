@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { BackupManager } from './BackupManager';
 
 interface PasswordChangeForm {
   current_password: string;
@@ -34,8 +35,13 @@ interface PowerDNSSetting {
   is_active: boolean;
   timeout: number;
   verify_ssl: boolean;
+  multi_server_mode: boolean; // Multi-server mode flag
   created_at: string;
   updated_at: string;
+  // Health status fields
+  health_status?: string; // "healthy", "unhealthy", "unknown"
+  last_health_check?: string;
+  health_response_time_ms?: number;
 }
 
 interface PowerDNSTestResult {
@@ -54,11 +60,12 @@ interface SettingsFormData {
   is_default: boolean;
   timeout: number;
   verify_ssl: boolean;
+  multi_server_mode: boolean;
 }
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'password' | 'tokens' | 'powerdns' | 'versioning'>('password');
+  const [activeTab, setActiveTab] = useState<'password' | 'tokens' | 'powerdns' | 'versioning' | 'backup'>('password');
   
   // Password change state
   const [passwordForm, setPasswordForm] = useState<PasswordChangeForm>({
@@ -90,6 +97,7 @@ const Settings: React.FC = () => {
     is_default: false,
     timeout: 30,
     verify_ssl: true,
+    multi_server_mode: false,
   });
 
   // Versioning settings state
@@ -115,10 +123,23 @@ const Settings: React.FC = () => {
     const hash = window.location.hash;
     if (hash === '#powerdns' && user?.role === 'admin') {
       setActiveTab('powerdns');
+      // Load settings with health status when accessing PowerDNS tab
+      fetchSettings(true);
     } else if (hash === '#tokens') {
       setActiveTab('tokens');
+    } else if (hash === '#backup') {
+      setActiveTab('backup');
+    } else if (hash === '#versioning' && user?.role === 'admin') {
+      setActiveTab('versioning');
     }
   }, [user]);
+
+  // Load health status when PowerDNS tab is accessed
+  useEffect(() => {
+    if (activeTab === 'powerdns' && user?.role === 'admin') {
+      fetchSettings(true);
+    }
+  }, [activeTab, user]);
 
   // Password change functions
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -288,10 +309,11 @@ const Settings: React.FC = () => {
   };
 
   // PowerDNS settings functions (admin only)
-  const fetchSettings = async () => {
+  const fetchSettings = async (includeHealth: boolean = false) => {
     try {
       setLoading(true);
-      const response = await apiService.get('/api/settings/powerdns');
+      const url = includeHealth ? '/api/settings/powerdns?include_health=true' : '/api/settings/powerdns';
+      const response = await apiService.get(url);
       setSettings(response.data);
     } catch (error: any) {
       // If it's a 404 or similar, it just means no settings exist yet
@@ -310,6 +332,10 @@ const Settings: React.FC = () => {
     }
   };
 
+  const refreshHealthStatus = async () => {
+    await fetchSettings(true);
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -319,6 +345,7 @@ const Settings: React.FC = () => {
       is_default: false,
       timeout: 30,
       verify_ssl: true,
+      multi_server_mode: false,
     });
     setEditingId(null);
     setShowCreateForm(false);
@@ -338,6 +365,7 @@ const Settings: React.FC = () => {
         is_default: fullSetting.is_default,
         timeout: fullSetting.timeout,
         verify_ssl: fullSetting.verify_ssl,
+        multi_server_mode: fullSetting.multi_server_mode || false,
       });
       setEditingId(setting.id);
       setShowCreateForm(true);
@@ -509,6 +537,17 @@ const Settings: React.FC = () => {
             >
               <span>🔐</span>
               <span>API Tokens</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('backup')}
+              className={`${
+                activeTab === 'backup'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+            >
+              <span>💾</span>
+              <span>Backup</span>
             </button>
             {user?.role === 'admin' && (
               <button
@@ -876,13 +915,26 @@ const Settings: React.FC = () => {
                     Manage PowerDNS server connections and configurations.
                   </p>
                 </div>
-                <button
-                  onClick={() => setShowCreateForm(true)}
-                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  <span>➕</span>
-                  <span>Add PowerDNS Server</span>
-                </button>
+                <div className="flex items-center space-x-3">
+                  {settings.length > 0 && (
+                    <button
+                      onClick={refreshHealthStatus}
+                      disabled={loading}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      title="Refresh health status for all servers"
+                    >
+                      <span>{loading ? '⏳' : '🔄'}</span>
+                      <span>Refresh Health</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowCreateForm(true)}
+                    className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    <span>➕</span>
+                    <span>Add PowerDNS Server</span>
+                  </button>
+                </div>
               </div>
 
               {/* Quick Setup Cards for new users */}
@@ -916,6 +968,7 @@ const Settings: React.FC = () => {
                           is_default: true,
                           timeout: 30,
                           verify_ssl: false,
+                          multi_server_mode: false,
                         });
                         setShowCreateForm(true);
                       }}
@@ -1060,28 +1113,50 @@ const Settings: React.FC = () => {
                       />
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-3 sm:space-y-0">
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.is_default}
-                          onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-blue-500">⭐</span>
-                        <span className="text-sm text-gray-700">Set as default server</span>
-                      </label>
+                    <div className="flex flex-col space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-3 sm:space-y-0">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.is_default}
+                            onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-blue-500">⭐</span>
+                          <span className="text-sm text-gray-700">Set as default server</span>
+                        </label>
+                        
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.verify_ssl}
+                            onChange={(e) => setFormData({ ...formData, verify_ssl: e.target.checked })}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-green-500">🔒</span>
+                          <span className="text-sm text-gray-700">Verify SSL certificates</span>
+                        </label>
+                      </div>
                       
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.verify_ssl}
-                          onChange={(e) => setFormData({ ...formData, verify_ssl: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-green-500">🔒</span>
-                        <span className="text-sm text-gray-700">Verify SSL certificates</span>
-                      </label>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <label className="flex items-start space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.multi_server_mode}
+                            onChange={(e) => setFormData({ ...formData, multi_server_mode: e.target.checked })}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5"
+                          />
+                          <div>
+                            <div className="flex items-center space-x-1">
+                              <span className="text-purple-500">🌐</span>
+                              <span className="text-sm font-medium text-gray-700">Enable multi-server operations</span>
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              When enabled, DNS operations (create, update, delete) will be performed on all active PowerDNS servers concurrently for high availability and redundancy.
+                            </div>
+                          </div>
+                        </label>
+                      </div>
                     </div>
                     
                     <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
@@ -1130,6 +1205,7 @@ const Settings: React.FC = () => {
                             is_default: true,
                             timeout: 30,
                             verify_ssl: false,
+                            multi_server_mode: false,
                           });
                           setShowCreateForm(true);
                         }}
@@ -1162,7 +1238,7 @@ const Settings: React.FC = () => {
                             URL
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
+                            Health Status
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Settings
@@ -1196,20 +1272,74 @@ const Settings: React.FC = () => {
                               {setting.api_url}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  setting.is_active
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}
-                              >
-                                {setting.is_active ? 'Active' : 'Inactive'}
-                              </span>
+                              <div className="flex flex-col space-y-1">
+                                {/* Real-time Health Status */}
+                                <div className="flex items-center space-x-2">
+                                  <span
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      setting.health_status === 'healthy'
+                                        ? 'bg-green-100 text-green-800'
+                                        : setting.health_status === 'unhealthy'
+                                        ? 'bg-red-100 text-red-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                    }`}
+                                  >
+                                    <div className={`w-2 h-2 rounded-full mr-1 ${
+                                      setting.health_status === 'healthy'
+                                        ? 'bg-green-400'
+                                        : setting.health_status === 'unhealthy'
+                                        ? 'bg-red-400'
+                                        : 'bg-gray-400'
+                                    }`}></div>
+                                    {setting.health_status === 'healthy' ? 'Healthy' : 
+                                     setting.health_status === 'unhealthy' ? 'Unhealthy' : 
+                                     'Unknown'}
+                                  </span>
+                                  {setting.health_response_time_ms && (
+                                    <span className="text-xs text-gray-500">
+                                      {Math.round(setting.health_response_time_ms)}ms
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {/* Database Status */}
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-xs text-gray-500">Config:</span>
+                                  <span
+                                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs ${
+                                      setting.is_active
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'bg-gray-100 text-gray-600'
+                                    }`}
+                                  >
+                                    {setting.is_active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </div>
+                                
+                                {/* Last Check Time */}
+                                {setting.last_health_check && (
+                                  <div className="text-xs text-gray-400">
+                                    Checked: {new Date(setting.last_health_check).toLocaleTimeString()}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               <div className="space-y-1">
                                 <div>Timeout: {setting.timeout}s</div>
                                 <div>SSL: {setting.verify_ssl ? 'Verified' : 'Disabled'}</div>
+                                <div className="flex items-center space-x-1">
+                                  <span>Multi-server:</span>
+                                  <span
+                                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                      setting.multi_server_mode
+                                        ? 'bg-purple-100 text-purple-700'
+                                        : 'bg-gray-100 text-gray-600'
+                                    }`}
+                                  >
+                                    {setting.multi_server_mode ? '🌐 Enabled' : '📍 Disabled'}
+                                  </span>
+                                </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -1332,57 +1462,63 @@ const Settings: React.FC = () => {
                   <div className="space-y-4">
                     <h4 className="font-medium text-gray-900">Auto-versioning Options</h4>
                     
-                    <div className="space-y-3">
-                      <label className="flex items-center space-x-3">
-                        <input
-                          type="checkbox"
-                          checked={versioningSettings.auto_version_enabled}
-                          onChange={(e) => handleVersioningSettingsUpdate({
-                            ...versioningSettings,
-                            auto_version_enabled: e.target.checked
-                          })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">Enable Auto-versioning</span>
-                          <p className="text-xs text-gray-500">Master switch for automatic version creation</p>
-                        </div>
-                      </label>
+                    {versioningLoading ? (
+                      <div className="flex items-center justify-center p-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <label className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={versioningSettings.auto_version_enabled}
+                            onChange={(e) => handleVersioningSettingsUpdate({
+                              ...versioningSettings,
+                              auto_version_enabled: e.target.checked
+                            })}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">Enable Auto-versioning</span>
+                            <p className="text-xs text-gray-500">Master switch for automatic version creation</p>
+                          </div>
+                        </label>
 
-                      <label className="flex items-center space-x-3">
-                        <input
-                          type="checkbox"
-                          checked={versioningSettings.auto_version_on_record_change}
-                          disabled={!versioningSettings.auto_version_enabled}
-                          onChange={(e) => handleVersioningSettingsUpdate({
-                            ...versioningSettings,
-                            auto_version_on_record_change: e.target.checked
-                          })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
-                        />
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">Version on Record Changes</span>
-                          <p className="text-xs text-gray-500">Create versions when DNS records are added, modified, or deleted</p>
-                        </div>
-                      </label>
+                        <label className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={versioningSettings.auto_version_on_record_change}
+                            disabled={!versioningSettings.auto_version_enabled}
+                            onChange={(e) => handleVersioningSettingsUpdate({
+                              ...versioningSettings,
+                              auto_version_on_record_change: e.target.checked
+                            })}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">Version on Record Changes</span>
+                            <p className="text-xs text-gray-500">Create versions when DNS records are added, modified, or deleted</p>
+                          </div>
+                        </label>
 
-                      <label className="flex items-center space-x-3">
-                        <input
-                          type="checkbox"
-                          checked={versioningSettings.auto_version_on_zone_change}
-                          disabled={!versioningSettings.auto_version_enabled}
-                          onChange={(e) => handleVersioningSettingsUpdate({
-                            ...versioningSettings,
-                            auto_version_on_zone_change: e.target.checked
-                          })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
-                        />
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">Version on Zone Changes</span>
-                          <p className="text-xs text-gray-500">Create versions when zone settings are modified</p>
-                        </div>
-                      </label>
-                    </div>
+                        <label className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={versioningSettings.auto_version_on_zone_change}
+                            disabled={!versioningSettings.auto_version_enabled}
+                            onChange={(e) => handleVersioningSettingsUpdate({
+                              ...versioningSettings,
+                              auto_version_on_zone_change: e.target.checked
+                            })}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">Version on Zone Changes</span>
+                            <p className="text-xs text-gray-500">Create versions when zone settings are modified</p>
+                          </div>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-4">
@@ -1474,6 +1610,50 @@ const Settings: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Backup Tab - Available to all users */}
+          {activeTab === 'backup' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Backup & Export</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Download backups of your zones, records, and configurations.
+                </p>
+              </div>
+
+              {user?.role === 'admin' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-blue-500">💡</span>
+                    <h4 className="font-medium text-blue-800">Zone Versioning</h4>
+                  </div>
+                  <p className="text-sm text-blue-700 mb-3">
+                    For zone-specific versioning and rollback capabilities, visit individual zones from the Zones page. 
+                    Zone versioning allows you to track changes and restore previous versions.
+                  </p>
+                  <div className="flex items-center space-x-4">
+                    <a 
+                      href="/zones" 
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      → Go to Zones
+                    </a>
+                    <a 
+                      href="#versioning" 
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      onClick={() => setActiveTab('versioning')}
+                    >
+                      → Configure Auto-Versioning
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white">
+                <BackupManager />
               </div>
             </div>
           )}

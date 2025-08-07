@@ -10,7 +10,6 @@ import Dashboard from './components/Dashboard';
 import ZoneList from './components/ZoneList';
 import ZoneDetail from './components/ZoneDetail';
 import UserManagement from './components/UserManagement';
-import { BackupManager } from './components/BackupManager';
 import Settings from './components/Settings';
 import Navigation from './components/Navigation';
 
@@ -89,14 +88,6 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <ZoneDetail />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/backup"
-          element={
-            <ProtectedRoute>
-              <BackupManager />
             </ProtectedRoute>
           }
         />

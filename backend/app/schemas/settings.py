@@ -36,6 +36,7 @@ class PowerDNSSettingBase(BaseModel):
     is_active: bool = True
     timeout: int = Field(default=30, ge=5, le=300)  # 5-300 seconds
     verify_ssl: bool = True
+    multi_server_mode: bool = Field(default=False, description="Enable multi-server operations")
 
 class PowerDNSSettingCreate(PowerDNSSettingBase):
     @validator('api_url')
@@ -53,6 +54,7 @@ class PowerDNSSettingUpdate(BaseModel):
     is_active: Optional[bool] = None
     timeout: Optional[int] = Field(None, ge=5, le=300)
     verify_ssl: Optional[bool] = None
+    multi_server_mode: Optional[bool] = None
 
     @validator('api_url')
     def validate_api_url(cls, v):
@@ -78,8 +80,13 @@ class PowerDNSSettingPublic(BaseModel):
     is_active: bool
     timeout: int
     verify_ssl: bool
+    multi_server_mode: bool
     created_at: datetime
     updated_at: datetime
+    # Real-time health status
+    health_status: Optional[str] = None  # "healthy", "unhealthy", "unknown"
+    last_health_check: Optional[datetime] = None
+    health_response_time_ms: Optional[float] = None
     
     class Config:
         from_attributes = True
@@ -104,6 +111,30 @@ class PowerDNSTestResult(BaseModel):
     response_time_ms: Optional[float] = None
     server_version: Optional[str] = None
     zones_count: Optional[int] = None
+
+
+class PowerDNSHealthStatus(BaseModel):
+    """Real-time health status for a PowerDNS server"""
+    server_id: int
+    name: str
+    api_url: str
+    is_active: bool
+    health_status: str  # "healthy", "unhealthy", "unknown", "checking"
+    last_checked: Optional[datetime] = None
+    response_time_ms: Optional[float] = None
+    error_message: Optional[str] = None
+    server_version: Optional[str] = None
+    zones_count: Optional[int] = None
+
+
+class PowerDNSHealthSummary(BaseModel):
+    """Summary of all PowerDNS servers health"""
+    total_servers: int
+    healthy_servers: int
+    unhealthy_servers: int
+    unknown_servers: int
+    last_check_time: datetime
+    servers: List[PowerDNSHealthStatus]
 
 
 class VersioningSettingsBase(BaseModel):

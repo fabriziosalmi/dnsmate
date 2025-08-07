@@ -34,6 +34,7 @@ class PowerDNSSettings(Base):
     is_active = Column(Boolean, default=True)
     timeout = Column(Integer, default=30)  # API timeout in seconds
     verify_ssl = Column(Boolean, default=True)
+    multi_server_mode = Column(Boolean, default=False)  # Enable multi-server operations
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

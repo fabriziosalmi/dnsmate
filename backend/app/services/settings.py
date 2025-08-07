@@ -185,6 +185,168 @@ class PowerDNSSettingsService:
             update(PowerDNSSettings).values(is_default=False)
         )
 
+    async def check_server_health(
+        self, 
+        setting: PowerDNSSettings, 
+        quick_check: bool = False
+    ) -> Dict[str, Any]:
+        """Check health of a single PowerDNS server"""
+        start_time = time.time()
+        
+        try:
+            timeout = 10 if quick_check else setting.timeout
+            
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                verify=setting.verify_ssl
+            ) as client:
+                headers = {
+                    "X-API-Key": setting.api_key,
+                    "Content-Type": "application/json"
+                }
+                
+                # Basic connectivity check
+                response = await client.get(
+                    f"{setting.api_url}/api/v1/servers/localhost",
+                    headers=headers
+                )
+                
+                response_time = (time.time() - start_time) * 1000
+                
+                if response.status_code == 200:
+                    server_info = response.json()
+                    
+                    # Get zones count if not quick check
+                    zones_count = None
+                    if not quick_check:
+                        try:
+                            zones_response = await client.get(
+                                f"{setting.api_url}/api/v1/servers/localhost/zones",
+                                headers=headers
+                            )
+                            if zones_response.status_code == 200:
+                                zones_count = len(zones_response.json())
+                        except:
+                            pass  # Don't fail on zones count error
+                    
+                    return {
+                        "status": "healthy",
+                        "response_time_ms": response_time,
+                        "server_version": server_info.get('version'),
+                        "zones_count": zones_count,
+                        "error_message": None
+                    }
+                else:
+                    return {
+                        "status": "unhealthy",
+                        "response_time_ms": response_time,
+                        "server_version": None,
+                        "zones_count": None,
+                        "error_message": f"HTTP {response.status_code}: {response.text[:200]}"
+                    }
+                    
+        except httpx.TimeoutException:
+            return {
+                "status": "unhealthy",
+                "response_time_ms": None,
+                "server_version": None,
+                "zones_count": None,
+                "error_message": f"Connection timeout after {timeout}s"
+            }
+        except httpx.ConnectError as e:
+            return {
+                "status": "unhealthy",
+                "response_time_ms": None,
+                "server_version": None,
+                "zones_count": None,
+                "error_message": f"Connection failed: {str(e)}"
+            }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "response_time_ms": None,
+                "server_version": None,
+                "zones_count": None,
+                "error_message": f"Unexpected error: {str(e)}"
+            }
+
+    async def get_servers_health_status(self, db: AsyncSession, quick_check: bool = True) -> Dict[str, Any]:
+        """Get health status of all PowerDNS servers"""
+        from app.schemas.settings import PowerDNSHealthStatus, PowerDNSHealthSummary
+        from datetime import datetime
+        
+        servers = await self.get_powerdns_settings(db)
+        health_results = []
+        
+        # Check health of each server concurrently
+        health_tasks = [
+            self.check_server_health(server, quick_check) 
+            for server in servers
+        ]
+        
+        if health_tasks:
+            health_data = await asyncio.gather(*health_tasks, return_exceptions=True)
+        else:
+            health_data = []
+        
+        healthy_count = 0
+        unhealthy_count = 0
+        unknown_count = 0
+        
+        for i, server in enumerate(servers):
+            if i < len(health_data):
+                health = health_data[i]
+                if isinstance(health, Exception):
+                    status = "unknown"
+                    error_msg = str(health)
+                    response_time = None
+                    server_version = None
+                    zones_count = None
+                    unknown_count += 1
+                else:
+                    status = health["status"]
+                    error_msg = health["error_message"]
+                    response_time = health["response_time_ms"]
+                    server_version = health["server_version"]
+                    zones_count = health["zones_count"]
+                    
+                    if status == "healthy":
+                        healthy_count += 1
+                    elif status == "unhealthy":
+                        unhealthy_count += 1
+                    else:
+                        unknown_count += 1
+            else:
+                status = "unknown"
+                error_msg = "Health check not completed"
+                response_time = None
+                server_version = None
+                zones_count = None
+                unknown_count += 1
+            
+            health_status = PowerDNSHealthStatus(
+                server_id=server.id,
+                name=server.name,
+                api_url=server.api_url,
+                is_active=server.is_active,
+                health_status=status,
+                last_checked=datetime.utcnow(),
+                response_time_ms=response_time,
+                error_message=error_msg,
+                server_version=server_version,
+                zones_count=zones_count
+            )
+            health_results.append(health_status)
+        
+        return PowerDNSHealthSummary(
+            total_servers=len(servers),
+            healthy_servers=healthy_count,
+            unhealthy_servers=unhealthy_count,
+            unknown_servers=unknown_count,
+            last_check_time=datetime.utcnow(),
+            servers=health_results
+        )
+
     async def test_powerdns_connection(
         self, 
         api_url: str, 

@@ -32,16 +32,6 @@ const Navigation: React.FC = () => {
                 Zones
               </Link>
               <Link
-                to="/backup"
-                className={`${
-                  isActive('/backup') 
-                    ? 'border-blue-500 text-gray-900' 
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-              >
-                Backup
-              </Link>
-              <Link
                 to="/settings"
                 className={`${
                   isActive('/settings') 

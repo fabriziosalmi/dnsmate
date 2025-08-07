@@ -1,5 +1,6 @@
 """Settings API endpoints for PowerDNS configuration management"""
 
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Union, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,12 +9,17 @@ from app.core.database import get_async_session
 from app.core.auth import current_admin_user
 from app.models.user import User
 from app.schemas.settings import (
+    SystemSettingCreate, 
+    SystemSettingUpdate, 
+    SystemSetting,
     PowerDNSSettingCreate,
     PowerDNSSettingUpdate, 
     PowerDNSSettingPublic,
     PowerDNSTestResult,
-    VersioningSettings,
-    VersioningSettingsUpdate
+    PowerDNSHealthSummary,
+    VersioningSettingsCreate,
+    VersioningSettingsUpdate,
+    VersioningSettings
 )
 from app.services.settings import PowerDNSSettingsService, versioning_settings_service
 
@@ -36,14 +42,95 @@ async def get_powerdns_status(
     }
 
 
-@router.get("/powerdns", response_model=List[PowerDNSSettingPublic])
-async def get_powerdns_settings(
+@router.get("/powerdns/health", response_model=PowerDNSHealthSummary)
+async def get_powerdns_health(
+    current_user: User = Depends(current_admin_user),
+    session: AsyncSession = Depends(get_async_session),
+    quick_check: bool = True
+):
+    """Get real-time health status of all PowerDNS servers (admin only)"""
+    settings_service = PowerDNSSettingsService()
+    return await settings_service.get_servers_health_status(session, quick_check)
+
+
+@router.get("/powerdns/{setting_id}/health")
+async def get_powerdns_server_health(
+    setting_id: int,
     current_user: User = Depends(current_admin_user),
     session: AsyncSession = Depends(get_async_session)
 ):
-    """Get all PowerDNS settings (admin only)"""
+    """Get real-time health status of a specific PowerDNS server (admin only)"""
     settings_service = PowerDNSSettingsService()
-    return await settings_service.get_powerdns_settings(session)
+    setting = await settings_service.get_powerdns_setting(session, setting_id)
+    if not setting:
+        raise HTTPException(status_code=404, detail="PowerDNS setting not found")
+    
+    health = await settings_service.check_server_health(setting, quick_check=False)
+    return {
+        "server_id": setting.id,
+        "name": setting.name,
+        "api_url": setting.api_url,
+        "is_active": setting.is_active,
+        **health
+    }
+
+
+@router.get("/powerdns", response_model=List[PowerDNSSettingPublic])
+async def get_powerdns_settings(
+    current_user: User = Depends(current_admin_user),
+    session: AsyncSession = Depends(get_async_session),
+    include_health: bool = False
+):
+    """Get all PowerDNS settings with optional health status (admin only)"""
+    settings_service = PowerDNSSettingsService()
+    settings_list = await settings_service.get_powerdns_settings(session)
+    
+    if not include_health:
+        return settings_list
+    
+    # Get health status for each server
+    health_tasks = [
+        settings_service.check_server_health(setting, quick_check=True) 
+        for setting in settings_list
+    ]
+    
+    if health_tasks:
+        health_data = await asyncio.gather(*health_tasks, return_exceptions=True)
+    else:
+        health_data = []
+    
+    # Enhance settings with health data
+    enhanced_settings = []
+    for i, setting in enumerate(settings_list):
+        setting_dict = {
+            "id": setting.id,
+            "name": setting.name,
+            "api_url": setting.api_url,
+            "description": setting.description,
+            "is_default": setting.is_default,
+            "is_active": setting.is_active,
+            "timeout": setting.timeout,
+            "verify_ssl": setting.verify_ssl,
+            "created_at": setting.created_at,
+            "updated_at": setting.updated_at,
+            "health_status": "unknown",
+            "last_health_check": None,
+            "health_response_time_ms": None
+        }
+        
+        if i < len(health_data):
+            health = health_data[i]
+            if not isinstance(health, Exception):
+                from datetime import datetime
+                setting_dict.update({
+                    "health_status": health["status"],
+                    "last_health_check": datetime.utcnow(),
+                    "health_response_time_ms": health["response_time_ms"]
+                })
+        
+        enhanced_settings.append(PowerDNSSettingPublic(**setting_dict))
+    
+    return enhanced_settings
 
 
 @router.get("/powerdns/{setting_id}", response_model=PowerDNSSettingPublic)

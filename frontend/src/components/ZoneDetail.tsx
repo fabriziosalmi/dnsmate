@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { recordsAPI, zonesAPI, Zone } from '../services/api';
-import { ZoneVersioning } from './ZoneVersioning';
-import { BackupManager } from './BackupManager';
 import { toast } from 'react-hot-toast';
 
 interface Record {
@@ -21,7 +19,7 @@ const ZoneDetail: React.FC = () => {
   const [zone, setZone] = useState<Zone | null>(null);
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'records' | 'versions' | 'backup'>('records');
+  const [activeTab, setActiveTab] = useState<'records' | 'discovery' | 'security'>('records');
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [newRecord, setNewRecord] = useState({
     name: '',
@@ -144,24 +142,24 @@ const ZoneDetail: React.FC = () => {
               DNS Records ({records.length})
             </button>
             <button
-              onClick={() => setActiveTab('versions')}
+              onClick={() => setActiveTab('discovery')}
               className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                activeTab === 'versions'
+                activeTab === 'discovery'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Versions
+              🔍 Discovery
             </button>
             <button
-              onClick={() => setActiveTab('backup')}
+              onClick={() => setActiveTab('security')}
               className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                activeTab === 'backup'
+                activeTab === 'security'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Backup
+              🔒 Security
             </button>
           </nav>
         </div>
@@ -335,12 +333,61 @@ const ZoneDetail: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'versions' && (
-            <ZoneVersioning zoneName={zoneName} onVersionChange={handleVersionChange} />
+          {activeTab === 'discovery' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">DNS Discovery</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Discover and analyze DNS configuration for {zoneName}
+                </p>
+              </div>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-yellow-500">🚧</span>
+                  <h4 className="font-medium text-yellow-800">Coming Soon</h4>
+                </div>
+                <p className="text-sm text-yellow-700 mt-2">
+                  DNS discovery features are being developed. This will include:
+                </p>
+                <ul className="text-sm text-yellow-700 mt-2 list-disc list-inside space-y-1">
+                  <li>Automatic subdomain detection</li>
+                  <li>DNS propagation analysis</li>
+                  <li>External DNS checker integration</li>
+                  <li>Zone health monitoring</li>
+                  <li>Configuration recommendations</li>
+                </ul>
+              </div>
+            </div>
           )}
 
-          {activeTab === 'backup' && (
-            <BackupManager zoneName={zoneName} />
+          {activeTab === 'security' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">DNS Security</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Security analysis and recommendations for {zoneName}
+                </p>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-blue-500">🚧</span>
+                  <h4 className="font-medium text-blue-800">Coming Soon</h4>
+                </div>
+                <p className="text-sm text-blue-700 mt-2">
+                  DNS security features are being developed. This will include:
+                </p>
+                <ul className="text-sm text-blue-700 mt-2 list-disc list-inside space-y-1">
+                  <li>DNSSEC validation and configuration</li>
+                  <li>Security policy recommendations</li>
+                  <li>Vulnerability scanning</li>
+                  <li>Rate limiting configuration</li>
+                  <li>Access control analysis</li>
+                  <li>Certificate monitoring (for TLSA records)</li>
+                </ul>
+              </div>
+            </div>
           )}
         </div>
       </div>

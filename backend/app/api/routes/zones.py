@@ -10,6 +10,7 @@ from app.core.database import get_async_session
 from app.models.user import User, ZonePermission, UserRole
 from app.schemas.dns import ZoneCreate, ZoneRead
 from app.services.powerdns import PowerDNSClient, PowerDNSZone
+from app.services.multi_powerdns import multi_powerdns_service
 
 router = APIRouter()
 
@@ -114,21 +115,21 @@ async def create_zone(
     current_user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
-    """Create new zone"""
+    """Create new zone on all active PowerDNS servers"""
     if current_user.role not in [UserRole.ADMIN, UserRole.EDITOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
-    client = PowerDNSClient()
-    
     try:
-        powerdns_zone = PowerDNSZone(
-            name=zone.name,
-            kind=zone.kind,
-            masters=zone.masters,
-            account=zone.account
-        )
+        # Prepare zone data for PowerDNS
+        zone_data = {
+            "name": zone.name,
+            "kind": zone.kind,
+            "masters": zone.masters,
+            "account": zone.account
+        }
         
-        zone_data = await client.create_zone(powerdns_zone)
+        # Create zone on all active PowerDNS servers
+        result = await multi_powerdns_service.create_zone_on_all(session, zone_data)
         
         # Create permission for the user if they're not admin
         if current_user.role == UserRole.EDITOR:
@@ -141,13 +142,47 @@ async def create_zone(
             session.add(permission)
             await session.commit()
         
-        return ZoneRead(
-            name=zone.name,
-            kind=zone.kind,
-            masters=zone.masters,
-            account=zone.account
-        )
+        # Check results and provide appropriate response
+        if result.is_complete_success:
+            return ZoneRead(
+                name=zone.name,
+                kind=zone.kind,
+                masters=zone.masters,
+                account=zone.account
+            )
+        elif result.is_partial_success:
+            # Some servers succeeded, some failed
+            success_servers = [r["server_name"] for r in result.results if r["success"]]
+            failed_servers = [f"{r['server_name']}: {r['error']}" for r in result.results if not r["success"]]
+            
+            raise HTTPException(
+                status_code=status.HTTP_207_MULTI_STATUS,
+                detail={
+                    "message": f"Zone created on {result.success_count}/{result.total_servers} servers",
+                    "success_servers": success_servers,
+                    "failed_servers": failed_servers,
+                    "partial_success": True,
+                    "zone": {
+                        "name": zone.name,
+                        "kind": zone.kind,
+                        "masters": zone.masters,
+                        "account": zone.account
+                    }
+                }
+            )
+        else:
+            # All servers failed
+            error_details = [f"{r['server_name']}: {r['error']}" for r in result.results]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Failed to create zone on all PowerDNS servers",
+                    "errors": error_details
+                }
+            )
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -161,23 +196,50 @@ async def delete_zone(
     current_user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
-    """Delete zone"""
+    """Delete zone from all active PowerDNS servers"""
     if not await check_zone_permission(zone_name, current_user, "write", session):
         raise HTTPException(status_code=403, detail="Access denied to this zone")
     
-    client = PowerDNSClient()
-    
     try:
-        await client.delete_zone(zone_name)
+        # Delete zone from all active PowerDNS servers
+        result = await multi_powerdns_service.delete_zone_from_all(session, zone_name)
         
-        # Clean up permissions
+        # Clean up permissions regardless of PowerDNS results
         await session.execute(
             select(ZonePermission).where(ZonePermission.zone_name == zone_name)
         )
         await session.commit()
         
-        return {"message": f"Zone {zone_name} deleted successfully"}
+        # Check results and provide appropriate response
+        if result.is_complete_success:
+            return {"message": f"Zone {zone_name} deleted successfully from all servers"}
+        elif result.is_partial_success:
+            # Some servers succeeded, some failed
+            success_servers = [r["server_name"] for r in result.results if r["success"]]
+            failed_servers = [f"{r['server_name']}: {r['error']}" for r in result.results if not r["success"]]
+            
+            raise HTTPException(
+                status_code=status.HTTP_207_MULTI_STATUS,
+                detail={
+                    "message": f"Zone deleted from {result.success_count}/{result.total_servers} servers",
+                    "success_servers": success_servers,
+                    "failed_servers": failed_servers,
+                    "partial_success": True
+                }
+            )
+        else:
+            # All servers failed
+            error_details = [f"{r['server_name']}: {r['error']}" for r in result.results]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Failed to delete zone from all PowerDNS servers",
+                    "errors": error_details
+                }
+            )
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

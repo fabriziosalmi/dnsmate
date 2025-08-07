@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -16,7 +16,7 @@ export const usePowerDNSStatus = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasShownNotification, setHasShownNotification] = useState(false);
 
-  const checkPowerDNSStatus = async () => {
+  const checkPowerDNSStatus = useCallback(async () => {
     if (!user || user.role !== 'admin') return;
 
     try {
@@ -60,14 +60,14 @@ export const usePowerDNSStatus = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, hasShownNotification, addNotification]);
 
   useEffect(() => {
     // Check status when user is admin and component mounts
     if (user?.role === 'admin') {
       checkPowerDNSStatus();
     }
-  }, [user]);
+  }, [user, checkPowerDNSStatus]);
 
   return {
     status,

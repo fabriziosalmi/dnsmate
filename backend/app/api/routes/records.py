@@ -10,6 +10,7 @@ from app.core.database import get_async_session
 from app.models.user import User, ZonePermission, UserRole
 from app.schemas.dns import RecordCreate, RecordRead, RecordUpdate
 from app.services.powerdns import PowerDNSClient, PowerDNSRecord
+from app.services.multi_powerdns import multi_powerdns_service
 
 router = APIRouter()
 
@@ -86,11 +87,9 @@ async def create_record(
     current_user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
-    """Create new record in zone"""
+    """Create new record in zone on all active PowerDNS servers"""
     if not await check_zone_permission(zone_name, current_user, "write", session):
         raise HTTPException(status_code=403, detail="Access denied to this zone")
-    
-    client = PowerDNSClient()
     
     try:
         # Validate and clean the record name
@@ -98,27 +97,57 @@ async def create_record(
         if not record_name:
             record_name = "@"  # Root of the zone
         
-        powerdns_record = PowerDNSRecord(
-            name=record_name,
-            type=record.type,
-            content=record.content,
-            ttl=record.ttl or 300,  # Default TTL if not specified
-            priority=record.priority,
-            disabled=record.disabled
-        )
+        # Prepare record data for PowerDNS
+        record_data = {
+            "name": record_name,
+            "type": record.type,
+            "content": record.content,
+            "ttl": record.ttl or 300,  # Default TTL if not specified
+            "priority": record.priority,
+            "disabled": record.disabled
+        }
         
-        await client.create_record(zone_name, powerdns_record)
+        # Add record to all active PowerDNS servers
+        result = await multi_powerdns_service.add_record_to_all(session, zone_name, record_data)
         
-        return RecordRead(
-            zone_name=zone_name,
-            name=record.name,
-            type=record.type,
-            content=record.content,
-            ttl=record.ttl or 300,
-            priority=record.priority,
-            disabled=record.disabled
-        )
+        # Check results and provide appropriate response
+        if result.is_complete_success:
+            return RecordRead(
+                zone_name=zone_name,
+                name=record.name,
+                type=record.type,
+                content=record.content,
+                ttl=record.ttl or 300,
+                priority=record.priority,
+                disabled=record.disabled
+            )
+        elif result.is_partial_success:
+            # Some servers succeeded, some failed
+            success_servers = [r["server_name"] for r in result.results if r["success"]]
+            failed_servers = [f"{r['server_name']}: {r['error']}" for r in result.results if not r["success"]]
+            
+            raise HTTPException(
+                status_code=status.HTTP_207_MULTI_STATUS,
+                detail={
+                    "message": f"Record created on {result.success_count}/{result.total_servers} servers",
+                    "success_servers": success_servers,
+                    "failed_servers": failed_servers,
+                    "partial_success": True
+                }
+            )
+        else:
+            # All servers failed
+            error_details = [f"{r['server_name']}: {r['error']}" for r in result.results]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Failed to create record on all PowerDNS servers",
+                    "errors": error_details
+                }
+            )
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -135,41 +164,54 @@ async def update_record(
     current_user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
-    """Update existing record"""
+    """Update existing record on all active PowerDNS servers"""
     if not await check_zone_permission(zone_name, current_user, "write", session):
         raise HTTPException(status_code=403, detail="Access denied to this zone")
     
-    client = PowerDNSClient()
-    
     try:
-        # Get current record data
-        records_data = await client.get_records(zone_name)
-        current_record = None
+        # Prepare record data for PowerDNS
+        record_data = {
+            "name": record_name,
+            "type": record_type,
+            "content": record_update.content,
+            "ttl": record_update.ttl,
+            "priority": record_update.priority,
+            "disabled": record_update.disabled
+        }
         
-        for rrset in records_data:
-            if rrset["name"] == record_name and rrset["type"] == record_type:
-                if rrset.get("records"):
-                    current_record = rrset["records"][0]
-                    current_ttl = rrset.get("ttl")
-                break
+        # Update record on all active PowerDNS servers
+        result = await multi_powerdns_service.update_record_on_all(session, zone_name, record_data)
         
-        if not current_record:
-            raise HTTPException(status_code=404, detail="Record not found")
+        # Check results and provide appropriate response
+        if result.is_complete_success:
+            return {"message": "Record updated successfully on all servers"}
+        elif result.is_partial_success:
+            # Some servers succeeded, some failed
+            success_servers = [r["server_name"] for r in result.results if r["success"]]
+            failed_servers = [f"{r['server_name']}: {r['error']}" for r in result.results if not r["success"]]
+            
+            raise HTTPException(
+                status_code=status.HTTP_207_MULTI_STATUS,
+                detail={
+                    "message": f"Record updated on {result.success_count}/{result.total_servers} servers",
+                    "success_servers": success_servers,
+                    "failed_servers": failed_servers,
+                    "partial_success": True
+                }
+            )
+        else:
+            # All servers failed
+            error_details = [f"{r['server_name']}: {r['error']}" for r in result.results]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Failed to update record on all PowerDNS servers",
+                    "errors": error_details
+                }
+            )
         
-        # Update with new values
-        updated_record = PowerDNSRecord(
-            name=record_name,
-            type=record_type,
-            content=record_update.content or current_record["content"],
-            ttl=record_update.ttl or current_ttl,
-            priority=record_update.priority,
-            disabled=record_update.disabled if record_update.disabled is not None else current_record.get("disabled", False)
-        )
-        
-        await client.update_record(zone_name, updated_record)
-        
-        return {"message": "Record updated successfully"}
-        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -185,16 +227,44 @@ async def delete_record(
     current_user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
-    """Delete record from zone"""
+    """Delete record from zone on all active PowerDNS servers"""
     if not await check_zone_permission(zone_name, current_user, "write", session):
         raise HTTPException(status_code=403, detail="Access denied to this zone")
     
-    client = PowerDNSClient()
-    
     try:
-        await client.delete_record(zone_name, record_name, record_type)
-        return {"message": f"Record {record_name} ({record_type}) deleted successfully"}
+        # Delete record from all active PowerDNS servers
+        result = await multi_powerdns_service.delete_record_from_all(session, zone_name, record_name, record_type)
         
+        # Check results and provide appropriate response
+        if result.is_complete_success:
+            return {"message": f"Record {record_name} ({record_type}) deleted successfully from all servers"}
+        elif result.is_partial_success:
+            # Some servers succeeded, some failed
+            success_servers = [r["server_name"] for r in result.results if r["success"]]
+            failed_servers = [f"{r['server_name']}: {r['error']}" for r in result.results if not r["success"]]
+            
+            raise HTTPException(
+                status_code=status.HTTP_207_MULTI_STATUS,
+                detail={
+                    "message": f"Record deleted from {result.success_count}/{result.total_servers} servers",
+                    "success_servers": success_servers,
+                    "failed_servers": failed_servers,
+                    "partial_success": True
+                }
+            )
+        else:
+            # All servers failed
+            error_details = [f"{r['server_name']}: {r['error']}" for r in result.results]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Failed to delete record from all PowerDNS servers",
+                    "errors": error_details
+                }
+            )
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
