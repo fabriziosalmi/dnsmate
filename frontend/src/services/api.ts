@@ -1,34 +1,219 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { toast } from 'react-hot-toast';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
+// Enhanced request retry configuration
+interface RetryConfig {
+  retries: number;
+  retryDelay: number;
+  retryCondition?: (error: AxiosError) => boolean;
+}
+
+// Extended config interface for metadata
+interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  metadata?: { startTime: number };
+  _retry?: boolean;
+  _retryCount?: number;
+}
+
+// API error response interface
+interface APIErrorResponse {
+  detail?: string;
+  message?: string;
+}
+
+// Simple cache implementation
+class APICache {
+  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+  
+  set(key: string, data: any, ttl = 300000) { // Default 5 minutes
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    });
+  }
+  
+  get(key: string): any | null {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    
+    if (Date.now() - item.timestamp > item.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return item.data;
+  }
+  
+  clear() {
+    this.cache.clear();
+  }
+  
+  delete(key: string) {
+    this.cache.delete(key);
+  }
+}
+
+const apiCache = new APICache();
+
+// Create axios instance with enhanced configuration
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 30000, // 30 second timeout
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Handle token expiration
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+// Request interceptor with retry logic
+api.interceptors.request.use(
+  (config: ExtendedAxiosRequestConfig) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Add request timestamp for performance monitoring
+    config.metadata = { startTime: Date.now() };
+    
+    return config;
+  },
+  (error) => {
     return Promise.reject(error);
   }
 );
+
+// Enhanced response interceptor
+api.interceptors.response.use(
+  (response: AxiosResponse) => {
+    // Calculate and log response time
+    const config = response.config as ExtendedAxiosRequestConfig;
+    const responseTime = Date.now() - (config.metadata?.startTime || Date.now());
+    
+    // Log slow requests
+    if (responseTime > 3000) {
+      console.warn(`Slow API request: ${response.config.method?.toUpperCase()} ${response.config.url} took ${responseTime}ms`);
+    }
+    
+    // Add response time to headers for monitoring
+    response.headers['x-response-time'] = `${responseTime}ms`;
+    
+    return response;
+  },
+  async (error: AxiosError<APIErrorResponse>) => {
+    const originalRequest = error.config as ExtendedAxiosRequestConfig;
+    
+    // Handle authentication errors
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      // Clear token and redirect to login
+      localStorage.removeItem('token');
+      apiCache.clear(); // Clear cache on auth failure
+      
+      // Only redirect if not already on login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+      
+      return Promise.reject(error);
+    }
+    
+    // Retry logic for failed requests
+    const retryConfig: RetryConfig = {
+      retries: 3,
+      retryDelay: 1000,
+      retryCondition: (err) => {
+        // Retry on network errors and 5xx server errors
+        return !err.response || (err.response.status >= 500 && err.response.status < 600);
+      }
+    };
+    
+    if (
+      retryConfig.retryCondition &&
+      retryConfig.retryCondition(error) &&
+      (!originalRequest._retryCount || originalRequest._retryCount < retryConfig.retries)
+    ) {
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      
+      // Exponential backoff
+      const delay = retryConfig.retryDelay * Math.pow(2, originalRequest._retryCount - 1);
+      
+      console.log(`Retrying request (${originalRequest._retryCount}/${retryConfig.retries}) after ${delay}ms...`);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return api.request(originalRequest);
+    }
+    
+    // Enhanced error handling
+    const errorMessage = error.response?.data?.detail || 
+                        error.response?.data?.message || 
+                        error.message || 
+                        'An unexpected error occurred';
+    
+    // Log error details for monitoring
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      message: errorMessage,
+      requestId: error.response?.headers['x-request-id']
+    });
+    
+    return Promise.reject(error);
+  }
+);
+
+// Enhanced API methods with caching support
+const enhancedAPI = {
+  // GET with caching
+  get: async (url: string, config?: AxiosRequestConfig & { useCache?: boolean; cacheTTL?: number }) => {
+    const { useCache = false, cacheTTL = 300000, ...axiosConfig } = config || {};
+    
+    if (useCache) {
+      const cached = apiCache.get(url);
+      if (cached) {
+        return { data: cached };
+      }
+    }
+    
+    const response = await api.get(url, axiosConfig);
+    
+    if (useCache) {
+      apiCache.set(url, response.data, cacheTTL);
+    }
+    
+    return response;
+  },
+  
+  // POST, PUT, PATCH, DELETE - invalidate cache
+  post: async (url: string, data?: any, config?: AxiosRequestConfig) => {
+    const response = await api.post(url, data, config);
+    // Invalidate related cache entries
+    apiCache.delete(url);
+    return response;
+  },
+  
+  put: async (url: string, data?: any, config?: AxiosRequestConfig) => {
+    const response = await api.put(url, data, config);
+    apiCache.delete(url);
+    return response;
+  },
+  
+  patch: async (url: string, data?: any, config?: AxiosRequestConfig) => {
+    const response = await api.patch(url, data, config);
+    apiCache.delete(url);
+    return response;
+  },
+  
+  delete: async (url: string, config?: AxiosRequestConfig) => {
+    const response = await api.delete(url, config);
+    apiCache.delete(url);
+    return response;
+  }
+};
 
 export interface User {
   id: number;
@@ -286,6 +471,145 @@ export const backupAPI = {
   },
 };
 
+// Legacy API functions (keeping for backward compatibility)
+export const authAPI = {
+  login: async (email: string, password: string) => {
+    return enhancedAPI.post('/auth/login', { username: email, password });
+  },
+  
+  logout: async () => {
+    return enhancedAPI.post('/auth/logout');
+  },
+  
+  register: async (userData: any) => {
+    return enhancedAPI.post('/auth/register', userData);
+  },
+  
+  getProfile: async () => {
+    return enhancedAPI.get('/auth/me', { useCache: true, cacheTTL: 60000 }); // Cache for 1 minute
+  }
+};
+
+export const zonesAPI = {
+  getZones: async () => {
+    return enhancedAPI.get('/zones', { useCache: true, cacheTTL: 30000 }); // Cache for 30 seconds
+  },
+  
+  getZone: async (zoneId: string) => {
+    return enhancedAPI.get(`/zones/${zoneId}`, { useCache: true, cacheTTL: 30000 });
+  },
+  
+  createZone: async (zoneData: any) => {
+    return enhancedAPI.post('/zones', zoneData);
+  },
+  
+  updateZone: async (zoneId: string, zoneData: any) => {
+    return enhancedAPI.put(`/zones/${zoneId}`, zoneData);
+  },
+  
+  deleteZone: async (zoneId: string) => {
+    return enhancedAPI.delete(`/zones/${zoneId}`);
+  }
+};
+
+export const recordsAPI = {
+  getRecords: async (zoneId: string) => {
+    return enhancedAPI.get(`/zones/${zoneId}/records`, { useCache: true, cacheTTL: 15000 }); // Cache for 15 seconds
+  },
+  
+  createRecord: async (zoneId: string, recordData: any) => {
+    return enhancedAPI.post(`/zones/${zoneId}/records`, recordData);
+  },
+  
+  updateRecord: async (zoneId: string, recordId: string, recordData: any) => {
+    return enhancedAPI.put(`/zones/${zoneId}/records/${recordId}`, recordData);
+  },
+  
+  deleteRecord: async (zoneId: string, recordId: string) => {
+    return enhancedAPI.delete(`/zones/${zoneId}/records/${recordId}`);
+  }
+};
+
+export const usersAPI = {
+  getUsers: async () => {
+    return enhancedAPI.get('/users', { useCache: true, cacheTTL: 60000 }); // Cache for 1 minute
+  },
+  
+  createUser: async (userData: any) => {
+    return enhancedAPI.post('/users', userData);
+  },
+  
+  updateUser: async (userId: string, userData: any) => {
+    return enhancedAPI.put(`/users/${userId}`, userData);
+  },
+  
+  deleteUser: async (userId: string) => {
+    return enhancedAPI.delete(`/users/${userId}`);
+  }
+};
+
+export const settingsAPI = {
+  getPowerDNSServers: async () => {
+    return enhancedAPI.get('/settings/powerdns-servers', { useCache: true, cacheTTL: 30000 });
+  },
+  
+  createPowerDNSServer: async (serverData: any) => {
+    return enhancedAPI.post('/settings/powerdns-servers', serverData);
+  },
+  
+  updatePowerDNSServer: async (serverId: string, serverData: any) => {
+    return enhancedAPI.put(`/settings/powerdns-servers/${serverId}`, serverData);
+  },
+  
+  deletePowerDNSServer: async (serverId: string) => {
+    return enhancedAPI.delete(`/settings/powerdns-servers/${serverId}`);
+  },
+  
+  testPowerDNSServer: async (serverId: string) => {
+    return enhancedAPI.post(`/settings/powerdns-servers/${serverId}/test`);
+  }
+};
+
+export const monitoringAPI = {
+  getHealth: async () => {
+    return enhancedAPI.get('/monitoring/health');
+  },
+  
+  getMetrics: async () => {
+    return enhancedAPI.get('/monitoring/metrics');
+  },
+  
+  getPowerDNSStatus: async () => {
+    return enhancedAPI.get('/monitoring/powerdns-status');
+  }
+};
+
+export const auditAPI = {
+  getAuditLogs: async (params?: any) => {
+    const queryParams = new URLSearchParams(params).toString();
+    return enhancedAPI.get(`/audit-logs${queryParams ? `?${queryParams}` : ''}`, { 
+      useCache: true, 
+      cacheTTL: 15000 
+    });
+  }
+};
+
+export const tokenAPI = {
+  getTokens: async () => {
+    return enhancedAPI.get('/tokens', { useCache: true, cacheTTL: 30000 });
+  },
+  
+  createToken: async (tokenData: any) => {
+    return enhancedAPI.post('/tokens', tokenData);
+  },
+  
+  revokeToken: async (tokenId: string) => {
+    return enhancedAPI.delete(`/tokens/${tokenId}`);
+  }
+};
+
+// Export enhanced API and cache utilities
+export { enhancedAPI as api, apiCache };
 export default api;
 
 // Generic API service for direct usage

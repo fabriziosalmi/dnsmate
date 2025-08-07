@@ -8,13 +8,13 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from app.services.settings import PowerDNSSettingsService
 from app.models.settings import PowerDNSSettings
-from app.core.database import AsyncSessionLocal
+from app.core.database import async_session_maker
 from app.schemas.settings import PowerDNSSettingCreate
 
 async def create_demo_servers():
     """Create demo PowerDNS server configurations"""
     
-    async with AsyncSessionLocal() as session:
+    async with async_session_maker() as session:
         settings_service = PowerDNSSettingsService()
         
         try:

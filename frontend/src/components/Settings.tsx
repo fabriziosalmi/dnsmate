@@ -65,7 +65,15 @@ interface SettingsFormData {
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
+  // Make PowerDNS the default tab for admins, password for non-admins
   const [activeTab, setActiveTab] = useState<'password' | 'tokens' | 'powerdns' | 'versioning' | 'backup'>('password');
+  
+  // Update default tab when user loads
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      setActiveTab('powerdns');
+    }
+  }, [user]);
   
   // Password change state
   const [passwordForm, setPasswordForm] = useState<PasswordChangeForm>({
@@ -377,21 +385,62 @@ const Settings: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Check for duplicates before submitting
+    const isDuplicateName = settings.some(setting => 
+      setting.name.toLowerCase() === formData.name.toLowerCase() && setting.id !== editingId
+    );
+    
+    const isDuplicateUrl = settings.some(setting => 
+      setting.api_url.toLowerCase() === formData.api_url.toLowerCase() && setting.id !== editingId
+    );
+    
+    if (isDuplicateName) {
+      toast.error(`A PowerDNS server with the name "${formData.name}" already exists. Please choose a different name.`);
+      return;
+    }
+    
+    if (isDuplicateUrl) {
+      toast.error(`A PowerDNS server with the URL "${formData.api_url}" already exists. Please use a different URL.`);
+      return;
+    }
+    
+    // If setting as default, warn about changing the current default
+    if (formData.is_default && !editingId) {
+      const currentDefault = settings.find(s => s.is_default);
+      if (currentDefault) {
+        const confirmChange = window.confirm(
+          `This will replace "${currentDefault.name}" as the default PowerDNS server. Continue?`
+        );
+        if (!confirmChange) {
+          return;
+        }
+      }
+    }
+    
     try {
       if (editingId) {
         // Update existing setting
         await apiService.put(`/api/settings/powerdns/${editingId}`, formData);
-        toast.success('PowerDNS setting updated successfully');
+        toast.success(`PowerDNS server "${formData.name}" updated successfully`);
       } else {
         // Create new setting
         await apiService.post('/api/settings/powerdns', formData);
-        toast.success('PowerDNS setting created successfully');
+        toast.success(`PowerDNS server "${formData.name}" created successfully`);
       }
       
       resetForm();
       fetchSettings();
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to save PowerDNS setting');
+      const errorMessage = error.response?.data?.detail || 'Failed to save PowerDNS setting';
+      
+      // Handle specific error cases
+      if (errorMessage.includes('already exists')) {
+        toast.error(`Server configuration already exists. Please check your settings.`);
+      } else if (errorMessage.includes('connection')) {
+        toast.error(`Unable to connect to PowerDNS server. Please verify the URL and API key.`);
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -516,6 +565,25 @@ const Settings: React.FC = () => {
       <div className="bg-white shadow rounded-lg">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            {/* PowerDNS tab first for admins */}
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('powerdns')}
+                className={`${
+                  activeTab === 'powerdns'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+              >
+                <span>🌐</span>
+                <span>PowerDNS Servers</span>
+                {settings.length > 0 && (
+                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full font-medium">
+                    {settings.length}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('password')}
               className={`${
@@ -524,7 +592,7 @@ const Settings: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
             >
-              <span>🔑</span>
+              <span>�</span>
               <span>Password</span>
             </button>
             <button
@@ -535,8 +603,13 @@ const Settings: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
             >
-              <span>🔐</span>
+              <span>�</span>
               <span>API Tokens</span>
+              {tokens.length > 0 && (
+                <span className="bg-gray-100 text-gray-800 text-xs px-2 py-0.5 rounded-full font-medium">
+                  {tokens.length}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('backup')}
@@ -546,7 +619,7 @@ const Settings: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
             >
-              <span>💾</span>
+              <span>�</span>
               <span>Backup</span>
             </button>
             {user?.role === 'admin' && (
@@ -560,19 +633,6 @@ const Settings: React.FC = () => {
               >
                 <span>📋</span>
                 <span>Auto Versioning</span>
-              </button>
-            )}
-            {user?.role === 'admin' && (
-              <button
-                onClick={() => setActiveTab('powerdns')}
-                className={`${
-                  activeTab === 'powerdns'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
-              >
-                <span>🌐</span>
-                <span>PowerDNS</span>
               </button>
             )}
           </nav>
@@ -908,6 +968,64 @@ const Settings: React.FC = () => {
           {/* PowerDNS Tab - Admin only */}
           {activeTab === 'powerdns' && user?.role === 'admin' && (
             <div className="space-y-6">
+              {/* Summary Cards */}
+              {settings.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-500 text-lg">🌐</span>
+                      <div>
+                        <div className="text-lg font-semibold text-blue-900">{settings.length}</div>
+                        <div className="text-xs text-blue-700">Total Servers</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-green-500 text-lg">✅</span>
+                      <div>
+                        <div className="text-lg font-semibold text-green-900">
+                          {settings.filter(s => s.is_active).length}
+                        </div>
+                        <div className="text-xs text-green-700">Active Servers</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-purple-500 text-lg">🔗</span>
+                      <div>
+                        <div className="text-lg font-semibold text-purple-900">
+                          {settings.filter(s => s.multi_server_mode).length}
+                        </div>
+                        <div className="text-xs text-purple-700">Multi-Server</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-yellow-500 text-lg">⭐</span>
+                      <div>
+                        <div className="text-lg font-semibold text-yellow-900">
+                          {(() => {
+                            const defaultServer = settings.find(s => s.is_default);
+                            return defaultServer ? (
+                              defaultServer.name.length > 10 
+                                ? defaultServer.name.substring(0, 10) + '...'
+                                : defaultServer.name
+                            ) : 'None';
+                          })()}
+                        </div>
+                        <div className="text-xs text-yellow-700">Default Server</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-lg font-medium text-gray-900">PowerDNS Servers</h3>
@@ -960,12 +1078,26 @@ const Settings: React.FC = () => {
                     </div>
                     <button
                       onClick={() => {
+                        // Check if test server already exists
+                        const existingTestServer = settings.find(s => 
+                          s.api_url.toLowerCase().includes('powerdns:8081') || 
+                          s.name.toLowerCase().includes('test')
+                        );
+                        
+                        if (existingTestServer) {
+                          toast(`Test server "${existingTestServer.name}" already exists. You can edit it from the servers list below.`, {
+                            icon: 'ℹ️',
+                            duration: 4000
+                          });
+                          return;
+                        }
+                        
                         setFormData({
                           name: 'Test PowerDNS',
                           api_url: 'http://powerdns:8081',
                           api_key: 'dnsmate-test-key',
                           description: 'Built-in PowerDNS instance for testing',
-                          is_default: true,
+                          is_default: settings.length === 0, // Only set as default if no servers exist
                           timeout: 30,
                           verify_ssl: false,
                           multi_server_mode: false,
@@ -1038,10 +1170,20 @@ const Settings: React.FC = () => {
                           type="text"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 ${
+                            formData.name && settings.some(s => s.name.toLowerCase() === formData.name.toLowerCase() && s.id !== editingId)
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-gray-300'
+                          }`}
                           placeholder="e.g., Production PowerDNS"
                           required
                         />
+                        {formData.name && settings.some(s => s.name.toLowerCase() === formData.name.toLowerCase() && s.id !== editingId) && (
+                          <div className="mt-1 text-xs text-red-600 flex items-center space-x-1">
+                            <span>⚠️</span>
+                            <span>A server with this name already exists</span>
+                          </div>
+                        )}
                       </div>
                       
                       <div>
@@ -1053,10 +1195,20 @@ const Settings: React.FC = () => {
                           type="url"
                           value={formData.api_url}
                           onChange={(e) => setFormData({ ...formData, api_url: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 ${
+                            formData.api_url && settings.some(s => s.api_url.toLowerCase() === formData.api_url.toLowerCase() && s.id !== editingId)
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-gray-300'
+                          }`}
                           placeholder="http://powerdns:8081"
                           required
                         />
+                        {formData.api_url && settings.some(s => s.api_url.toLowerCase() === formData.api_url.toLowerCase() && s.id !== editingId) && (
+                          <div className="mt-1 text-xs text-red-600 flex items-center space-x-1">
+                            <span>⚠️</span>
+                            <span>A server with this URL already exists</span>
+                          </div>
+                        )}
                         <div className="mt-1 text-xs text-gray-500">
                           Include the protocol (http:// or https://) and port
                         </div>
