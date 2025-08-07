@@ -155,7 +155,8 @@ module.exports = {
     },
   },
   plugins: [
-    // Custom plugin for DNS-specific utilities (no external plugins for now)
+    require('@tailwindcss/forms'),
+    // Custom plugin for DNS-specific utilities
     function({ addUtilities }) {
       const newUtilities = {
         '.dns-gradient': {

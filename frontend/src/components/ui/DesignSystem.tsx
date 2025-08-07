@@ -370,19 +370,19 @@ export const Input: React.FC<InputProps> = ({
 }) => {
   const variantClasses = {
     default: `
-      block w-full border-gray-300 rounded-lg shadow-sm 
+      block w-full border-gray-300 rounded-lg shadow-sm bg-white text-gray-900 placeholder-gray-500
       focus:ring-2 focus:ring-blue-500 focus:border-blue-500
       transition-all duration-200 sm:text-sm
       ${error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}
     `,
     filled: `
-      block w-full bg-gray-50 border-transparent rounded-lg 
+      block w-full bg-gray-50 border-gray-200 rounded-lg text-gray-900 placeholder-gray-500
       focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500
       transition-all duration-200 sm:text-sm
-      ${error ? 'bg-red-50 focus:ring-red-500 focus:border-red-500' : ''}
+      ${error ? 'bg-red-50 border-red-200 focus:ring-red-500 focus:border-red-500' : ''}
     `,
     bordered: `
-      block w-full border-2 border-gray-300 rounded-lg 
+      block w-full border-2 border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500
       focus:ring-0 focus:border-blue-500
       transition-all duration-200 sm:text-sm
       ${error ? 'border-red-300 focus:border-red-500' : ''}
@@ -462,7 +462,7 @@ export const Select: React.FC<SelectProps> = ({
       )}
       <select
         className={`
-          block w-full border-gray-300 rounded-lg shadow-sm 
+          block w-full border-gray-300 rounded-lg shadow-sm bg-white text-gray-900
           focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
           transition-all duration-200 sm:text-sm
           ${error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}

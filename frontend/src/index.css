@@ -28,6 +28,35 @@
     @apply outline-none ring-2 ring-blue-500 ring-offset-2;
   }
   
+  /* Ensure form inputs have proper styling */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="url"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  textarea,
+  select {
+    @apply bg-white text-gray-900 placeholder-gray-500 border-gray-300;
+  }
+  
+  /* Fix autocomplete styling */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px white inset !important;
+    -webkit-text-fill-color: #111827 !important;
+  }
+  
+  /* Ensure select option styling */
+  select option {
+    @apply bg-white text-gray-900;
+  }
+  
   /* Better scrollbars */
   ::-webkit-scrollbar {
     @apply w-2 h-2;
@@ -68,7 +97,7 @@
   }
   
   .dns-input {
-    @apply block w-full border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm;
+    @apply block w-full border-gray-300 rounded-lg shadow-sm bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm;
   }
   
   .dns-badge {
