@@ -1,12 +1,29 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Zone, zonesAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { 
+  Button, 
+  Card, 
+  Input, 
+  Select, 
+  Badge, 
+  LoadingSpinner,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell
+} from './ui/DesignSystem';
+import { Icons, PageHeader, PageContainer, EmptyState } from './ui/Icons';
 
 const ZoneList: React.FC = () => {
   const [zones, setZones] = useState<Zone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [newZone, setNewZone] = useState({
     name: '',
     kind: 'Native',
@@ -62,167 +79,250 @@ const ZoneList: React.FC = () => {
     }
   };
 
+  const filteredZones = zones.filter(zone =>
+    zone.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    zone.kind.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (zone.account && zone.account.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   const canCreateZone = user?.role === 'admin' || user?.role === 'editor';
   const canDeleteZone = user?.role === 'admin' || user?.role === 'editor';
 
+  const getZoneTypeColor = (kind: string) => {
+    switch (kind.toLowerCase()) {
+      case 'native': return 'primary';
+      case 'master': return 'success';
+      case 'slave': return 'warning';
+      default: return 'secondary';
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <>
+        <PageHeader title="DNS Zones" description="Loading your DNS zones..." />
+        <PageContainer>
+          <div className="flex items-center justify-center h-64">
+            <LoadingSpinner size="lg" />
+          </div>
+        </PageContainer>
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="sm:flex sm:items-center">
-        <div className="sm:flex-auto">
-          <h1 className="text-xl font-semibold text-gray-900">DNS Zones</h1>
-          <p className="mt-2 text-sm text-gray-700">
-            Manage your DNS zones and records
-          </p>
-        </div>
-        {canCreateZone && (
-          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-            <button
+    <>
+      <PageHeader
+        title="DNS Zones"
+        description="Manage your DNS zones and records"
+        actions={
+          canCreateZone ? (
+            <Button
               onClick={() => setShowCreateForm(true)}
-              className="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:w-auto"
+              icon={<Icons.Plus />}
             >
               Create Zone
-            </button>
-          </div>
-        )}
-      </div>
-
-      {showCreateForm && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Create New Zone</h3>
-          <form onSubmit={handleCreateZone} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Zone Name</label>
-              <input
-                type="text"
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="example.com"
-                value={newZone.name}
-                onChange={(e) => setNewZone({ ...newZone, name: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Zone Type</label>
-              <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                value={newZone.kind}
-                onChange={(e) => setNewZone({ ...newZone, kind: e.target.value })}
-              >
-                <option value="Native">Native</option>
-                <option value="Master">Master</option>
-                <option value="Slave">Slave</option>
-              </select>
-            </div>
-            {newZone.kind === 'Slave' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Masters (comma-separated)</label>
-                <input
-                  type="text"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="192.168.1.1, 192.168.1.2"
-                  value={newZone.masters}
-                  onChange={(e) => setNewZone({ ...newZone, masters: e.target.value })}
+            </Button>
+          ) : undefined
+        }
+      />
+      
+      <PageContainer>
+        <div className="space-y-6">
+          {/* Search and Filters */}
+          <Card>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <Input
+                  placeholder="Search zones..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
                 />
               </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Account (optional)</label>
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                value={newZone.account}
-                onChange={(e) => setNewZone({ ...newZone, account: e.target.value })}
-              />
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              <Button
+                variant="ghost"
+                onClick={fetchZones}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Create Zone
-              </button>
+                <Icons.Refresh className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
             </div>
-          </form>
-        </div>
-      )}
+          </Card>
 
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-300">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Zone Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Type
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Serial
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Account
-              </th>
-              <th className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {zones.map((zone) => (
-              <tr key={zone.name}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  <a
-                    href={`/zones/${zone.name}`}
-                    className="text-blue-600 hover:text-blue-900"
+          {/* Create Zone Form */}
+          {showCreateForm && (
+            <Card>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900">Create New Zone</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateForm(false)}
                   >
-                    {zone.name}
-                  </a>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {zone.kind}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {zone.serial || 'N/A'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {zone.account || 'N/A'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  {canDeleteZone && (
-                    <button
-                      onClick={() => handleDeleteZone(zone.name)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    <Icons.Close className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <form onSubmit={handleCreateZone} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Zone Name"
+                      placeholder="example.com"
+                      value={newZone.name}
+                      onChange={(e) => setNewZone({ ...newZone, name: e.target.value })}
+                      required
+                      helpText="Enter the domain name for the zone"
+                    />
+                    
+                    <Select
+                      label="Zone Type"
+                      value={newZone.kind}
+                      onChange={(e) => setNewZone({ ...newZone, kind: e.target.value })}
+                      options={[
+                        { value: 'Native', label: 'Native' },
+                        { value: 'Master', label: 'Master' },
+                        { value: 'Slave', label: 'Slave' },
+                      ]}
+                    />
+                  </div>
+
+                  {newZone.kind === 'Slave' && (
+                    <Input
+                      label="Masters"
+                      placeholder="192.168.1.1, 192.168.1.2"
+                      value={newZone.masters}
+                      onChange={(e) => setNewZone({ ...newZone, masters: e.target.value })}
+                      helpText="Comma-separated list of master server IPs"
+                    />
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {zones.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-sm text-gray-500">No zones found</p>
-          </div>
-        )}
-      </div>
-    </div>
+
+                  <Input
+                    label="Account (Optional)"
+                    placeholder="Account name"
+                    value={newZone.account}
+                    onChange={(e) => setNewZone({ ...newZone, account: e.target.value })}
+                    helpText="Optional account identifier"
+                  />
+
+                  <div className="flex justify-end space-x-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setShowCreateForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      Create Zone
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </Card>
+          )}
+
+          {/* Zones Table */}
+          {filteredZones.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={<Icons.Globe className="h-12 w-12" />}
+                title={searchTerm ? 'No zones found' : 'No zones configured'}
+                description={
+                  searchTerm 
+                    ? 'Try adjusting your search criteria'
+                    : 'Create your first DNS zone to get started'
+                }
+                action={
+                  canCreateZone && !searchTerm ? (
+                    <Button
+                      onClick={() => setShowCreateForm(true)}
+                      icon={<Icons.Plus />}
+                    >
+                      Create Your First Zone
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </Card>
+          ) : (
+            <Card padding="none">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>Zone Name</TableHeader>
+                    <TableHeader>Type</TableHeader>
+                    <TableHeader>Serial</TableHeader>
+                    <TableHeader>Account</TableHeader>
+                    <TableHeader>Status</TableHeader>
+                    <TableHeader className="text-right">Actions</TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredZones.map((zone) => (
+                    <TableRow key={zone.name}>
+                      <TableCell>
+                        <Link
+                          to={`/zones/${zone.name}`}
+                          className="text-blue-600 hover:text-blue-900 font-medium"
+                        >
+                          {zone.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getZoneTypeColor(zone.kind) as any}>
+                          {zone.kind}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-gray-500">
+                        {zone.serial || '-'}
+                      </TableCell>
+                      <TableCell className="text-gray-500">
+                        {zone.account || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={zone.is_active ? 'success' : 'error'}>
+                          {zone.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end space-x-2">
+                          <Link
+                            to={`/zones/${zone.name}`}
+                            className="inline-flex items-center px-2 py-1 text-sm text-blue-600 hover:text-blue-700"
+                          >
+                            <Icons.Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Link>
+                          {canDeleteZone && (
+                            <button
+                              onClick={() => handleDeleteZone(zone.name)}
+                              className="inline-flex items-center px-2 py-1 text-sm text-red-600 hover:text-red-700"
+                            >
+                              <Icons.Delete className="h-4 w-4 mr-1" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+
+          {/* Results Summary */}
+          {zones.length > 0 && (
+            <div className="text-sm text-gray-500 text-center">
+              Showing {filteredZones.length} of {zones.length} zones
+              {searchTerm && ` matching "${searchTerm}"`}
+            </div>
+          )}
+        </div>
+      </PageContainer>
+    </>
   );
 };
 
