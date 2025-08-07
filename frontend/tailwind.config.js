@@ -155,7 +155,6 @@ module.exports = {
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
     // Custom plugin for DNS-specific utilities
     function({ addUtilities }) {
       const newUtilities = {
