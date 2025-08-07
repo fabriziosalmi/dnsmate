@@ -87,11 +87,6 @@ const ZoneDetail: React.FC = () => {
     }
   };
 
-  const handleVersionChange = () => {
-    // Refresh zone data when a version changes
-    fetchZoneDetails();
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
