@@ -4,6 +4,7 @@ import { recordsAPI, zonesAPI, Zone } from '../services/api';
 import { toast } from 'react-hot-toast';
 import { getErrorMessage } from '../utils/errorUtils';
 import { ZoneVersioning } from './ZoneVersioning';
+import { PageHeader, PageContainer } from './ui/Icons';
 
 interface Record {
   id?: number;
@@ -91,53 +92,66 @@ const ZoneDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
+      <>
+        <PageHeader
+          title="Loading Zone..."
+          description="Please wait while we load the zone details"
+        />
+        <PageContainer>
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </PageContainer>
+      </>
     );
   }
 
   if (!zone || !zoneName) {
     return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">Zone not found</p>
-      </div>
+      <>
+        <PageHeader
+          title="Zone Not Found"
+          description="The requested zone could not be found"
+        />
+        <PageContainer>
+          <div className="text-center py-8">
+            <p className="text-gray-500">Zone not found</p>
+          </div>
+        </PageContainer>
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Zone Header */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{zone.name}</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Type: {zone.kind} | Serial: {zone.serial}
-            </p>
-          </div>
-          <div className="text-right">
-            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-              {zone.is_active ? 'Active' : 'Inactive'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex">
-            <button
-              onClick={() => setActiveTab('records')}
-              className={`py-2 px-4 border-b-2 font-medium text-sm ${
-                activeTab === 'records'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              DNS Records ({records.length})
-            </button>
+    <>
+      <PageHeader
+        title={zone.name}
+        description={`Type: ${zone.kind} | Serial: ${zone.serial}`}
+        actions={
+          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+            zone.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+            {zone.is_active ? 'Active' : 'Inactive'}
+          </span>
+        }
+      />
+      
+      <PageContainer>
+        <div className="space-y-6">
+          {/* Tab Navigation */}
+          <div className="bg-white shadow rounded-lg">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex">
+                <button
+                  onClick={() => setActiveTab('records')}
+                  className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                    activeTab === 'records'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  DNS Records ({records.length})
+                </button>
             <button
               onClick={() => setActiveTab('versions')}
               className={`py-2 px-4 border-b-2 font-medium text-sm ${
@@ -405,7 +419,9 @@ const ZoneDetail: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+        </div>
+      </PageContainer>
+    </>
   );
 };
 
